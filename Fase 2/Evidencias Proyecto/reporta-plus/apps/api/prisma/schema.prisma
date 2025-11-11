@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  password  String
+  role      Role      @default(TECH)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  services  Service[]
+}
+
+enum Role {
+  TECH
+  SUP
+  ADMIN
+}
+
+model Client {
+  id        String    @id @default(uuid())
+  name      String
+  rut       String?   @unique
+  contact   String?
+  email     String?
+  phone     String?
+  sites     Site[]
+  services  Service[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Site {
+  id       String    @id @default(uuid())
+  clientId String
+  name     String
+  address  String?
+  lat      Float?
+  lng      Float?
+  client   Client    @relation(fields: [clientId], references: [id])
+  services Service[]
+}
+
+model Service {
+  id         String        @id @default(uuid())
+  serviceUid String        @unique
+  techId     String
+  clientId   String
+  siteId     String?
+  type       String
+  status     ServiceStatus @default(DRAFT)
+  notes      String?
+  date       DateTime      @default(now())
+  version    Int           @default(1)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  tech    User          @relation(fields: [techId], references: [id])
+  client  Client        @relation(fields: [clientId], references: [id])
+  site    Site?         @relation(fields: [siteId], references: [id])
+  files   ServiceFile[]
+  reports Report[]
+}
+
+enum ServiceStatus {
+  DRAFT
+  SIGNED
+  SENT
+  DONE
+}
+
+model ServiceFile {
+  id        String   @id @default(uuid())
+  serviceId String
+  kind      FileKind
+  url       String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+enum FileKind {
+  PHOTO
+  SIGNATURE
+  PDF
+  XLSX
+}
+
+model Template {
+  id           String       @id @default(uuid())
+  name         String
+  type         TemplateType
+  placeholders Json?
+  version      Int          @default(1)
+  active       Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+enum TemplateType {
+  HTML
+  DOCX
+  XLSX
+  PDF_ACROFORM
+}
+
+model Report {
+  id        String    @id @default(uuid())
+  serviceId String
+  pdfUrl    String?
+  xlsxUrl   String?
+  sentTo    Json?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+}
+
+model AuditLog {
+  id       String   @id @default(uuid())
+  userId   String?
+  action   String
+  entity   String
+  entityId String?
+  payload  Json?
+  ts       DateTime @default(now())
+}
