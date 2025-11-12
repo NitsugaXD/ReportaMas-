@@ -1,11 +1,21 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common'
 import { ServicesService } from './services.service'
 import { CreateServiceDto, UpdateServiceDto } from './dto/create-service.dto'
 import { QueryServiceDto } from './dto/query-service.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { User } from '../common/decorators/user.decorator'
+import { FileInterceptor } from '@nestjs/platform-express'
+import multer from 'multer'
 
-@UseGuards(JwtAuthGuard)
 @Controller('services')
 export class ServicesController {
   constructor(private readonly svc: ServicesService) {}
@@ -17,7 +27,19 @@ export class ServicesController {
 
   @Get()
   list(@Query() q: QueryServiceDto, @User() user: any) {
-    return this.svc.findMany(q, user)
+    return this.svc.findMany(
+      {
+        q: q.q,
+        from: q.from,
+        to: q.to,
+        tech: q.tech,
+        client: q.client,
+        status: q.status,
+        page: Number(q.page ?? 1),
+        pageSize: Number(q.pageSize ?? 20),
+      },
+      user,
+    )
   }
 
   @Get(':id')
@@ -28,5 +50,22 @@ export class ServicesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateServiceDto, @User() user: any) {
     return this.svc.update(id, dto, user)
+  }
+
+  @Post(':id/files')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
+  upload(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('kind') kind: 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX',
+    @User() user: any,
+  ) {
+    if (!file) throw new Error('Archivo requerido')
+    return this.svc.uploadFile(id, file, (kind ?? 'PHOTO') as any, user)
   }
 }

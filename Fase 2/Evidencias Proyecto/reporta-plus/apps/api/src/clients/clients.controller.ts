@@ -1,18 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common'
 import { ClientsService } from './clients.service'
 import { CreateClientDto } from './dto/create-client.dto'
 import { UpdateClientDto } from './dto/update-client.dto'
 import { CreateSiteDto } from './dto/create-site.dto'
 import { UpdateSiteDto } from './dto/update-site.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 
-@UseGuards(JwtAuthGuard)
 @Controller('clients')
 export class ClientsController {
   constructor(private readonly svc: ClientsService) {}
 
-  // --- Clients
   @Get()
   list(@Query('q') q?: string, @Query('page') page = '1', @Query('pageSize') pageSize = '20') {
     return this.svc.searchClients(q, Number(page), Number(pageSize))
@@ -41,7 +38,6 @@ export class ClientsController {
     return this.svc.deleteClient(id)
   }
 
-  // --- Sites
   @Get(':id/sites')
   listSites(@Param('id') clientId: string) {
     return this.svc.listSites(clientId)
