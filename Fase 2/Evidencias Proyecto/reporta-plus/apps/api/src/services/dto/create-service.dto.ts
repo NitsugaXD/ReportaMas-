@@ -1,13 +1,19 @@
 import { IsDateString, IsEnum, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class CreateServiceDto {
-  @IsString() @MinLength(6) serviceUid: string
-  @IsString() techId: string
-  @IsString() clientId: string
-  @IsOptional() @IsString() siteId?: string
-  @IsString() type: string
-  @IsOptional() @IsString() notes?: string
-  @IsOptional() @IsDateString() date?: string
+  serviceUid: string
+  techId?: string
+
+  clientId?: string           
+  clientName?: string         
+
+  siteId?: string             
+  siteName?: string           
+  siteAddress?: string        
+
+  type: string
+  notes?: string
+  date?: string
 }
 
 export enum ServiceStatusDto {
