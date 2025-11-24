@@ -7,38 +7,58 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateServiceDto, UpdateServiceDto } from './dto/create-service.dto'
 import { StorageService } from '../storage/storage.service'
+import { MailService } from '../mail/mail.service'
 
 @Injectable()
 export class ServicesService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private mail: MailService,
   ) {}
 
   // ---- Crear servicio con find-or-create
   async create(dto: CreateServiceDto, user: { userId: string; role: string }) {
+    // 1) Determinar técnico
     const techId = user.role === 'TECH' ? user.userId : dto.techId
     if (!techId) throw new BadRequestException('techId requerido')
 
-    // CLIENTE
+    // 2) Resolver CLIENTE (find-or-create con email)
     let clientId: string | undefined = dto.clientId
 
     if (!clientId && dto.clientName) {
       const existing = await this.prisma.client.findFirst({
         where: { name: { equals: dto.clientName, mode: 'insensitive' } },
       })
-      clientId = existing
-        ? existing.id
-        : (await this.prisma.client.create({ data: { name: dto.clientName } }))
-            .id
+
+      if (existing) {
+        clientId = existing.id
+
+        // si viene correo y cambió / estaba vacío, lo actualizamos
+        if (dto.clientEmail && existing.email !== dto.clientEmail) {
+          await this.prisma.client.update({
+            where: { id: existing.id },
+            data: { email: dto.clientEmail },
+          })
+        }
+      } else {
+        const created = await this.prisma.client.create({
+          data: {
+            name: dto.clientName,
+            ...(dto.clientEmail ? { email: dto.clientEmail } : {}),
+          },
+        })
+        clientId = created.id
+      }
     }
 
-    if (!clientId)
+    if (!clientId) {
       throw new BadRequestException(
         'client requerido: envía clientId o clientName',
       )
+    }
 
-    // SITIO
+    // 3) Resolver SITIO
     let siteId: string | undefined = dto.siteId
 
     if (!siteId && dto.siteName) {
@@ -48,6 +68,7 @@ export class ServicesService {
           clientId,
         },
       })
+
       if (existingSite) {
         siteId = existingSite.id
       } else {
@@ -65,16 +86,18 @@ export class ServicesService {
         where: { id: siteId },
       })
       if (!exists) throw new BadRequestException('siteId no existe')
-      if (exists.clientId !== clientId)
-        throw new BadRequestException(
-          'siteId no pertenece al client indicado',
-        )
+      if (exists.clientId !== clientId) {
+        throw new BadRequestException('siteId no pertenece al client indicado')
+      }
     }
 
-    if (user.role === 'TECH' && techId !== user.userId)
+    // 4) Seguridad
+    if (user.role === 'TECH' && techId !== user.userId) {
       throw new ForbiddenException('No puedes crear servicios para otro técnico')
+    }
 
-    return this.prisma.service.create({
+    // 5) Crear servicio conectando relaciones
+    const service = await this.prisma.service.create({
       data: {
         serviceUid: dto.serviceUid,
         type: dto.type,
@@ -86,9 +109,19 @@ export class ServicesService {
       },
       include: { client: true, site: true, tech: true, files: true },
     })
+
+    // 6) Enviar correo automático al cliente (si hay email)
+    const emailTo =
+      service.client?.email || dto.clientEmail || undefined
+
+    if (emailTo) {
+      await this.mail.sendServiceCreatedEmail(emailTo, service)
+    }
+
+    return service
   }
 
-  // ---- LISTAR (BUSCADOR AVANZADO)
+  // ---- Listar (buscador avanzado)
   async findMany(query: any, user: { userId: string; role: string }) {
     const { q, from, to, tech, client, status } = query
     const page = Number(query.page ?? 1)
@@ -96,18 +129,15 @@ export class ServicesService {
 
     const where: any = {}
 
-    // -------------------------
-    // 🔍 Buscador avanzado
-    // -------------------------
     if (q) {
       where.OR = [
         // Tipo de servicio
         { type: { contains: q, mode: 'insensitive' } },
 
-        // Notas / sugerencias
+        // Notas / observaciones
         { notes: { contains: q, mode: 'insensitive' } },
 
-        // UID del servicio
+        // UID
         { serviceUid: { contains: q, mode: 'insensitive' } },
 
         // Cliente
@@ -121,7 +151,6 @@ export class ServicesService {
       ]
     }
 
-    // Filtro por fechas (si lo envías)
     if (from || to) {
       where.date = {
         ...(from ? { gte: new Date(from) } : {}),
@@ -132,12 +161,8 @@ export class ServicesService {
     if (status) where.status = status
     if (client) where.clientId = client
 
-    // Seguridad por rol
-    if (user.role === 'TECH') {
-      where.techId = user.userId
-    } else if (tech) {
-      where.techId = tech
-    }
+    if (user.role === 'TECH') where.techId = user.userId
+    else if (tech) where.techId = tech
 
     const [items, total] = await Promise.all([
       this.prisma.service.findMany({
@@ -210,7 +235,6 @@ export class ServicesService {
       /\s+/g,
       '_',
     )}`
-
     const { url } = await this.storage.uploadBuffer(
       key,
       file.buffer,

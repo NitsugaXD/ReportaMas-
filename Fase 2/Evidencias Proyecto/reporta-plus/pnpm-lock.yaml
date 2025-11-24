@@ -71,7 +71,7 @@ importers:
         specifier: ^4.4.1
         version: 4.4.1(@nestjs/common@10.4.20(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@10.5.0)(pino@9.14.0)(rxjs@7.8.2)
       nodemailer:
-        specifier: ^6.9.15
+        specifier: ^6.10.1
         version: 6.10.1
       passport:
         specifier: ^0.7.0

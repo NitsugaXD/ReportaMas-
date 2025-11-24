@@ -11,6 +11,7 @@ type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 
 type FormState = {
   clientName: string
+  clientEmail: string
   siteName: string
   siteAddress: string
   type: string
@@ -31,6 +32,7 @@ export default function ServiceNew() {
 
   const [form, setForm] = useState<FormState>({
     clientName: '',
+    clientEmail: '',
     siteName: '',
     siteAddress: '',
     type: 'Servicio informático',
@@ -169,6 +171,7 @@ export default function ServiceNew() {
       const dto = {
         serviceUid,
         clientName: form.clientName,
+        clientEmail: form.clientEmail || undefined,
         siteName: form.siteName,
         siteAddress: form.siteAddress,
         type: form.type,
@@ -255,6 +258,16 @@ export default function ServiceNew() {
             placeholder="Nombre del cliente"
             className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
           />
+
+            <input
+            name="clientEmail"
+            type="email"
+            value={form.clientEmail}
+            onChange={handleChange}
+            placeholder="Correo electrónico del cliente (opcional)"
+            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+          />
+
 
           <input
             name="siteName"
