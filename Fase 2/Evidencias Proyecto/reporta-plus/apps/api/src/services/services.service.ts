@@ -17,12 +17,12 @@ export class ServicesService {
 
   // ---- Crear servicio con find-or-create
   async create(dto: CreateServiceDto, user: { userId: string; role: string }) {
-    // 1) Determinar técnico
     const techId = user.role === 'TECH' ? user.userId : dto.techId
     if (!techId) throw new BadRequestException('techId requerido')
 
-    // 2) Resolver CLIENTE
+    // CLIENTE
     let clientId: string | undefined = dto.clientId
+
     if (!clientId && dto.clientName) {
       const existing = await this.prisma.client.findFirst({
         where: { name: { equals: dto.clientName, mode: 'insensitive' } },
@@ -32,14 +32,15 @@ export class ServicesService {
         : (await this.prisma.client.create({ data: { name: dto.clientName } }))
             .id
     }
-    if (!clientId) {
+
+    if (!clientId)
       throw new BadRequestException(
         'client requerido: envía clientId o clientName',
       )
-    }
 
-    // 3) Resolver SITIO
+    // SITIO
     let siteId: string | undefined = dto.siteId
+
     if (!siteId && dto.siteName) {
       const existingSite = await this.prisma.site.findFirst({
         where: {
@@ -47,8 +48,9 @@ export class ServicesService {
           clientId,
         },
       })
-      if (existingSite) siteId = existingSite.id
-      else {
+      if (existingSite) {
+        siteId = existingSite.id
+      } else {
         const createdSite = await this.prisma.site.create({
           data: {
             name: dto.siteName,
@@ -59,27 +61,25 @@ export class ServicesService {
         siteId = createdSite.id
       }
     } else if (siteId) {
-      const exists = await this.prisma.site.findUnique({ where: { id: siteId } })
+      const exists = await this.prisma.site.findUnique({
+        where: { id: siteId },
+      })
       if (!exists) throw new BadRequestException('siteId no existe')
-      // (opcional) validar que el site pertenece al clientId resuelto
-      if (exists.clientId !== clientId) {
-        throw new BadRequestException('siteId no pertenece al client indicado')
-      }
+      if (exists.clientId !== clientId)
+        throw new BadRequestException(
+          'siteId no pertenece al client indicado',
+        )
     }
 
-    // 4) Seguridad
-    if (user.role === 'TECH' && techId !== user.userId) {
+    if (user.role === 'TECH' && techId !== user.userId)
       throw new ForbiddenException('No puedes crear servicios para otro técnico')
-    }
 
-    // 5) Crear servicio conectando relaciones
     return this.prisma.service.create({
       data: {
         serviceUid: dto.serviceUid,
         type: dto.type,
         notes: dto.notes || null,
         ...(dto.date ? { date: new Date(dto.date) } : {}),
-
         tech: { connect: { id: techId } },
         client: { connect: { id: clientId } },
         ...(siteId ? { site: { connect: { id: siteId } } } : {}),
@@ -88,28 +88,56 @@ export class ServicesService {
     })
   }
 
-  // ---- Listar
+  // ---- LISTAR (BUSCADOR AVANZADO)
   async findMany(query: any, user: { userId: string; role: string }) {
     const { q, from, to, tech, client, status } = query
     const page = Number(query.page ?? 1)
     const pageSize = Number(query.pageSize ?? 20)
 
     const where: any = {}
-    if (q)
+
+    // -------------------------
+    // 🔍 Buscador avanzado
+    // -------------------------
+    if (q) {
       where.OR = [
+        // Tipo de servicio
         { type: { contains: q, mode: 'insensitive' } },
+
+        // Notas / sugerencias
         { notes: { contains: q, mode: 'insensitive' } },
+
+        // UID del servicio
         { serviceUid: { contains: q, mode: 'insensitive' } },
+
+        // Cliente
+        { client: { name: { contains: q, mode: 'insensitive' } } },
+
+        // Sitio (nombre)
+        { site: { name: { contains: q, mode: 'insensitive' } } },
+
+        // Sitio (dirección)
+        { site: { address: { contains: q, mode: 'insensitive' } } },
       ]
-    if (from || to)
+    }
+
+    // Filtro por fechas (si lo envías)
+    if (from || to) {
       where.date = {
         ...(from ? { gte: new Date(from) } : {}),
         ...(to ? { lte: new Date(to) } : {}),
       }
+    }
+
     if (status) where.status = status
     if (client) where.clientId = client
-    if (user.role === 'TECH') where.techId = user.userId
-    else if (tech) where.techId = tech
+
+    // Seguridad por rol
+    if (user.role === 'TECH') {
+      where.techId = user.userId
+    } else if (tech) {
+      where.techId = tech
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.service.findMany({
@@ -138,14 +166,23 @@ export class ServicesService {
   }
 
   // ---- Actualizar
-  async update(id: string, dto: UpdateServiceDto, user: { userId: string; role: string }) {
+  async update(
+    id: string,
+    dto: UpdateServiceDto,
+    user: { userId: string; role: string },
+  ) {
     const existing = await this.prisma.service.findUnique({ where: { id } })
     if (!existing) throw new NotFoundException('Servicio no encontrado')
     if (user.role === 'TECH' && existing.techId !== user.userId)
       throw new ForbiddenException()
+
     if (dto.version != null && dto.version !== existing.version) {
-      throw new BadRequestException({ code: 'VERSION_CONFLICT', current: existing.version })
+      throw new BadRequestException({
+        code: 'VERSION_CONFLICT',
+        current: existing.version,
+      })
     }
+
     return this.prisma.service.update({
       where: { id },
       data: {
@@ -169,8 +206,16 @@ export class ServicesService {
     if (user.role === 'TECH' && s.techId !== user.userId)
       throw new ForbiddenException()
 
-    const key = `services/${id}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`
-    const { url } = await this.storage.uploadBuffer(key, file.buffer, file.mimetype)
+    const key = `services/${id}/${Date.now()}-${file.originalname.replace(
+      /\s+/g,
+      '_',
+    )}`
+
+    const { url } = await this.storage.uploadBuffer(
+      key,
+      file.buffer,
+      file.mimetype,
+    )
 
     return this.prisma.serviceFile.create({
       data: {
