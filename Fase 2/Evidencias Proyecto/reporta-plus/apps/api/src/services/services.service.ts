@@ -6,13 +6,13 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateServiceDto, UpdateServiceDto } from './dto/create-service.dto'
-import { StorageService } from '../storage/storage.service' // 👈 para upload
+import { StorageService } from '../storage/storage.service'
 
 @Injectable()
 export class ServicesService {
   constructor(
     private prisma: PrismaService,
-    private storage: StorageService, // 👈 inyectamos storage
+    private storage: StorageService,
   ) {}
 
   // ---- Crear servicio con find-or-create
@@ -21,7 +21,7 @@ export class ServicesService {
     const techId = user.role === 'TECH' ? user.userId : dto.techId
     if (!techId) throw new BadRequestException('techId requerido')
 
-    // 2) Resolver CLIENTE (obligatorio por schema)
+    // 2) Resolver CLIENTE
     let clientId: string | undefined = dto.clientId
     if (!clientId && dto.clientName) {
       const existing = await this.prisma.client.findFirst({
@@ -38,7 +38,7 @@ export class ServicesService {
       )
     }
 
-    // 3) Resolver SITIO (opcional en schema, pero si viene nombre debe pertenecer al cliente)
+    // 3) Resolver SITIO
     let siteId: string | undefined = dto.siteId
     if (!siteId && dto.siteName) {
       const existingSite = await this.prisma.site.findFirst({
@@ -53,7 +53,6 @@ export class ServicesService {
           data: {
             name: dto.siteName,
             address: dto.siteAddress || null,
-            // 👇 relación obligatoria
             client: { connect: { id: clientId } },
           },
         })
@@ -73,7 +72,7 @@ export class ServicesService {
       throw new ForbiddenException('No puedes crear servicios para otro técnico')
     }
 
-    // 5) Crear servicio conectando relaciones (client obligatorio, site opcional)
+    // 5) Crear servicio conectando relaciones
     return this.prisma.service.create({
       data: {
         serviceUid: dto.serviceUid,
@@ -82,7 +81,7 @@ export class ServicesService {
         ...(dto.date ? { date: new Date(dto.date) } : {}),
 
         tech: { connect: { id: techId } },
-        client: { connect: { id: clientId } }, // 👈 requerido
+        client: { connect: { id: clientId } },
         ...(siteId ? { site: { connect: { id: siteId } } } : {}),
       },
       include: { client: true, site: true, tech: true, files: true },

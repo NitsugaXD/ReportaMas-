@@ -3,6 +3,16 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../api/client'
 import SignatureCanvas from 'react-signature-canvas'
 
+function getStatusLabel(status: string) {
+  switch (status) {
+    case 'DONE':
+      return 'Finalizado'
+    case 'DRAFT':
+    default:
+      return 'Creado / Editado'
+  }
+}
+
 type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 
 type ServiceFile = {
@@ -32,12 +42,10 @@ export default function ServiceDetail() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
 
-  // --- estado para subir archivo/foto
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadErr, setUploadErr] = useState('')
 
-  // --- firma
   const sigRef = useRef<SignatureCanvas | null>(null)
   const [savingSign, setSavingSign] = useState(false)
   const [signErr, setSignErr] = useState('')
@@ -74,8 +82,9 @@ export default function ServiceDetail() {
   const others = svc.files.filter((f) => f.kind === 'PDF' || f.kind === 'XLSX')
   const dateStr = new Date(svc.date).toLocaleString()
 
-  // --- subir archivo (foto/pdf/xlsx)
   async function handleUpload(kind: FileKind) {
+    if (!svc) return
+
     try {
       if (!file) return
       setUploadErr('')
@@ -100,8 +109,12 @@ export default function ServiceDetail() {
     }
   }
 
-  // --- guardar firma como imagen PNG
   async function handleSaveSignature() {
+    if (!svc) {
+      setSignErr('Servicio no cargado.')
+      return
+    }
+
     try {
       setSignErr('')
       setSavingSign(true)
@@ -111,23 +124,31 @@ export default function ServiceDetail() {
         return
       }
 
-      // obtenemos la imagen en base64
       const dataUrl = sig.toDataURL('image/png')
-      // la convertimos a Blob
       const res = await fetch(dataUrl)
       const blob = await res.blob()
 
       const fd = new FormData()
       fd.append('file', blob, 'firma.png')
 
-      const { data } = await api.post(
+      const { data: fileCreated } = await api.post(
         `/services/${svc.id}/files?kind=SIGNATURE`,
         fd,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
         },
       )
-      setSvc((prev) => (prev ? { ...prev, files: [...prev.files, data] } : prev))
+
+      setSvc((prev) =>
+        prev ? { ...prev, files: [...prev.files, fileCreated] } : prev,
+      )
+
+      await api.patch(`/services/${svc.id}`, { status: 'DONE' })
+
+      setSvc((prev) =>
+        prev ? { ...prev, status: 'DONE' } : prev,
+      )
+
       sig.clear()
     } catch (e: any) {
       setSignErr(
@@ -145,7 +166,6 @@ export default function ServiceDetail() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
-      {/* HEADER con botón Editar + Volver */}
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-semibold">
           Servicio #{svc.serviceUid}
@@ -163,7 +183,6 @@ export default function ServiceDetail() {
         </div>
       </div>
 
-      {/* Datos principales */}
       <div className="border rounded-lg p-3 bg-white space-y-1">
         <p>
           <span className="font-semibold">Cliente:</span>{' '}
@@ -185,7 +204,8 @@ export default function ServiceDetail() {
           <span className="font-semibold">Tipo:</span> {svc.type}
         </p>
         <p>
-          <span className="font-semibold">Estado:</span> {svc.status}
+          <span className="font-semibold">Estado:</span>{' '}
+          {getStatusLabel(svc.status)}
         </p>
         {svc.notes && (
           <p className="mt-2">
@@ -196,7 +216,6 @@ export default function ServiceDetail() {
         )}
       </div>
 
-      {/* Subir archivo/foto */}
       <div className="border rounded-lg p-3 bg-white space-y-2">
         <h2 className="font-semibold mb-1">Adjuntar archivo / foto</h2>
         <input
@@ -234,7 +253,6 @@ export default function ServiceDetail() {
         {uploadErr && <p className="text-red-600 text-xs mt-1">{uploadErr}</p>}
       </div>
 
-      {/* Firma del cliente */}
       <div className="border rounded-lg p-3 bg-white space-y-2">
         <h2 className="font-semibold mb-1">Firma del cliente</h2>
         <p className="text-xs text-gray-500">
@@ -272,7 +290,6 @@ export default function ServiceDetail() {
         {signErr && <p className="text-red-600 text-xs mt-1">{signErr}</p>}
       </div>
 
-      {/* FOTOS / FIRMAS */}
       <div className="border rounded-lg p-3 bg-white">
         <h2 className="font-semibold mb-2">Fotos y firmas</h2>
         {photos.length === 0 && (
@@ -298,7 +315,6 @@ export default function ServiceDetail() {
         </div>
       </div>
 
-      {/* OTROS ARCHIVOS */}
       <div className="border rounded-lg p-3 bg-white">
         <h2 className="font-semibold mb-2">Archivos adjuntos</h2>
         {others.length === 0 && (

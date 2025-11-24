@@ -5,7 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { StorageModule } from '../storage/storage.module'
 
 @Module({
-  imports: [PrismaModule, StorageModule], // 👈 necesarios
+  imports: [PrismaModule, StorageModule],
   providers: [ServicesService],
   controllers: [ServicesController],
 })

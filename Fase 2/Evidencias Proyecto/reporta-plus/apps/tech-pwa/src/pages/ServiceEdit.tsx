@@ -1,159 +1,137 @@
-import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api/client'
 
-type Service = {
-  id: string
+type FormState = {
+  clientName: string
+  siteName: string
+  siteAddress: string
   type: string
-  notes?: string | null
-  date: string
-  status: string
-  client?: { name: string | null }
-  site?: { name: string | null; address: string | null }
-  version?: number
+  notes: string
 }
 
 export default function ServiceEdit() {
   const { id } = useParams<{ id: string }>()
-  const nav = useNavigate()
-  const [svc, setSvc] = useState<Service | null>(null)
-  const [type, setType] = useState('Mantención')
-  const [notes, setNotes] = useState('')
+  const navigate = useNavigate()
+
+  const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState<FormState>({
+    clientName: '',
+    siteName: '',
+    siteAddress: '',
+    type: '',
+    notes: '',
+  })
 
   useEffect(() => {
     async function load() {
       try {
         const { data } = await api.get(`/services/${id}`)
-        setSvc(data)
-        setType(data.type || 'Mantención')
-        setNotes(data.notes || '')
+        setForm({
+          clientName: data.client?.name ?? '',
+          siteName: data.site?.name ?? '',
+          siteAddress: data.site?.address ?? '',
+          type: data.type,
+          notes: data.notes ?? '',
+        })
       } catch (e: any) {
         setErr(
-          e?.response?.data?.message ||
-            e?.message ||
-            'No se pudo cargar el servicio',
+          e?.response?.data?.message || e?.message || 'Error al cargar servicio'
         )
+      } finally {
+        setLoading(false)
       }
     }
-    if (id) load()
+
+    load()
   }, [id])
 
-  async function onSubmit(e: FormEvent) {
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) {
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!id) return
-    setErr('')
-    setLoading(true)
     try {
-      const payload: any = { type, notes }
-      if (svc?.version != null) payload.version = svc.version
-      await api.patch(`/services/${id}`, payload)
-      nav(`/s/${id}`)
+      await api.patch(`/services/${id}`, {
+        type: form.type,
+        notes: form.notes,
+      })
+      navigate(`/s/${id}`)
     } catch (e: any) {
       setErr(
-        e?.response?.data?.message ||
-          e?.message ||
-          'No se pudo actualizar el servicio',
+        e?.response?.data?.message || e?.message || 'Error al guardar cambios'
       )
-    } finally {
-      setLoading(false)
     }
   }
 
-  function handleTypeChange(e: ChangeEvent<HTMLSelectElement>) {
-    setType(e.target.value)
-  }
-
-  function handleNotesChange(e: ChangeEvent<HTMLTextAreaElement>) {
-    setNotes(e.target.value)
-  }
-
-  if (!id) {
-    return (
-      <div className="p-4">
-        <p className="text-sm text-red-600">ID de servicio inválido</p>
-      </div>
-    )
-  }
+  if (loading) return <div className="p-4">Cargando...</div>
+  if (err) return <div className="p-4 text-red-600">{err}</div>
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 max-w-3xl mx-auto">
       <h1 className="text-xl font-semibold mb-4">Editar servicio</h1>
 
-      {svc && (
-        <div className="mb-4 text-xs text-gray-600 border rounded px-3 py-2 bg-gray-50">
-          <p>
-            <span className="font-semibold">Cliente:</span>{' '}
-            {svc.client?.name || '—'}
-          </p>
-          <p>
-            <span className="font-semibold">Sitio:</span>{' '}
-            {svc.site?.name || '—'}
-          </p>
-          <p>
-            <span className="font-semibold">Dirección:</span>{' '}
-            {svc.site?.address || '—'}
-          </p>
-          <p>
-            <span className="font-semibold">Fecha:</span>{' '}
-            {new Date(svc.date).toLocaleString()}
-          </p>
-          <p>
-            <span className="font-semibold">Estado:</span> {svc.status}
-          </p>
-        </div>
-      )}
-
-      {err && (
-        <div className="mb-3 text-sm text-red-600 border border-red-200 bg-red-50 rounded px-3 py-2">
-          {err}
-        </div>
-      )}
-
-      <form onSubmit={onSubmit} className="space-y-3">
+      <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Tipo de servicio
-          </label>
-          <select
-            value={type}
-            onChange={handleTypeChange}
-            className="w-full border rounded px-3 py-2 text-sm bg-white"
-          >
-            <option value="Mantención">Mantención</option>
-            <option value="Servicio técnico">Servicio técnico</option>
-            <option value="Servicio informático">Servicio informático</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Observaciones / sugerencias
-          </label>
-          <textarea
-            value={notes}
-            onChange={handleNotesChange}
-            rows={4}
-            className="w-full border rounded px-3 py-2 text-sm"
+          <label className="block text-sm font-semibold">Cliente</label>
+          <input
+            name="clientName"
+            value={form.clientName}
+            className="border rounded p-2 w-full"
+            onChange={handleChange}
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 rounded bg-black text-white text-sm disabled:opacity-50"
-          >
-            {loading ? 'Guardando...' : 'Guardar cambios'}
-          </button>
-          <Link
-            to={`/s/${id}`}
-            className="text-sm text-gray-600 underline ml-2"
-          >
-            Cancelar
-          </Link>
+        <div>
+          <label className="block text-sm font-semibold">Sitio</label>
+          <input
+            name="siteName"
+            value={form.siteName}
+            className="border rounded p-2 w-full"
+            onChange={handleChange}
+          />
         </div>
+
+        <div>
+          <label className="block text-sm font-semibold">Dirección</label>
+          <input
+            name="siteAddress"
+            value={form.siteAddress}
+            className="border rounded p-2 w-full"
+            onChange={handleChange}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold">Tipo de servicio</label>
+          <input
+            name="type"
+            value={form.type}
+            className="border rounded p-2 w-full"
+            onChange={handleChange}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold">Notas</label>
+          <textarea
+            name="notes"
+            value={form.notes}
+            className="border rounded p-2 w-full h-24"
+            onChange={handleChange}
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="px-4 py-2 bg-black text-white rounded"
+        >
+          Guardar cambios
+        </button>
       </form>
     </div>
   )

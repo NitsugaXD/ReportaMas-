@@ -1,9 +1,11 @@
-import { useState, useRef, ChangeEvent, FormEvent } from 'react'
+import { useState, useRef } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ulid } from 'ulid'
 import SignatureCanvas from 'react-signature-canvas'
 import api from '../api/client'
 import { db } from '../db/dexie'
+import { useAuth } from '../stores/auth'
 
 type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 
@@ -15,23 +17,23 @@ type FormState = {
   notes: string
 }
 
+type FileAttachment = { file: File; kind: FileKind }
+
 type PendingFiles = {
   photos: File[]
-  attachments: { file: File; kind: FileKind }[]
+  attachments: FileAttachment[]
   signature?: File | null
 }
 
-// helper para adjuntos
-type FileAttachment = { file: File; kind: FileKind }
-
 export default function ServiceNew() {
   const nav = useNavigate()
+  const user = useAuth((s) => s.user)
 
   const [form, setForm] = useState<FormState>({
     clientName: '',
     siteName: '',
     siteAddress: '',
-    type: 'Mantención',
+    type: 'Servicio informático',
     notes: '',
   })
 
@@ -43,6 +45,7 @@ export default function ServiceNew() {
 
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [signErr, setSignErr] = useState('')
 
   const sigRef = useRef<SignatureCanvas | null>(null)
 
@@ -50,47 +53,49 @@ export default function ServiceNew() {
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) {
     const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+    setForm((prev) => ({ ...prev, [name]: value }))
   }
 
   function handlePhotosChange(e: ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return
     const list = Array.from(e.target.files)
-    setFiles(prev => ({ ...prev, photos: list }))
+    setFiles((prev) => ({ ...prev, photos: list }))
   }
 
   function handleAttachmentsChange(e: ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return
     const list = Array.from(e.target.files)
-    const mapped: FileAttachment[] = list.map(file => {
-      const ext = file.name.toLowerCase()
+    const mapped: FileAttachment[] = list.map((file) => {
+      const name = file.name.toLowerCase()
       let kind: FileKind = 'PHOTO'
-      if (ext.endsWith('.pdf')) kind = 'PDF'
-      if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) kind = 'XLSX'
+      if (name.endsWith('.pdf')) kind = 'PDF'
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) kind = 'XLSX'
       return { file, kind }
     })
-    setFiles(prev => ({ ...prev, attachments: mapped }))
+    setFiles((prev) => ({ ...prev, attachments: mapped }))
   }
 
-  function clearSignature() {
+  function handleClearSignature() {
     sigRef.current?.clear()
-    setFiles(prev => ({ ...prev, signature: null }))
+    setFiles((prev) => ({ ...prev, signature: null }))
+    setSignErr('')
   }
 
-  function captureSignature() {
-    if (!sigRef.current || sigRef.current.isEmpty()) {
+  function handleCaptureSignature() {
+    const sig = sigRef.current
+    if (!sig || sig.isEmpty()) {
+      setSignErr('Primero dibuja la firma.')
       return
     }
-    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png')
+    const dataUrl = sig.toDataURL('image/png')
     const file = dataURLToFile(dataUrl, `firma-${Date.now()}.png`)
-    setFiles(prev => ({ ...prev, signature: file }))
+    setFiles((prev) => ({ ...prev, signature: file }))
+    setSignErr('')
   }
 
   async function createOnline(dto: any, pending: PendingFiles) {
-    // 1) crear servicio
     const { data: svc } = await api.post('/services', dto)
 
-    // 2) subir archivos (si hay)
     const uploads: Promise<any>[] = []
 
     for (const photo of pending.photos) {
@@ -141,9 +146,14 @@ export default function ServiceNew() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setErr('')
+    setSignErr('')
     setLoading(true)
 
     try {
+      if (!user?.id) {
+        throw new Error('No se encontró el usuario autenticado.')
+      }
+
       const serviceUid = ulid()
       const dto = {
         serviceUid,
@@ -153,6 +163,7 @@ export default function ServiceNew() {
         type: form.type,
         notes: form.notes,
         date: new Date().toISOString(),
+        techId: user.id,
       }
 
       const pending: PendingFiles = {
@@ -167,12 +178,11 @@ export default function ServiceNew() {
       } else {
         await createOffline(dto, pending)
         alert(
-          '📡 Sin conexión: el servicio (y archivos) se guardaron localmente y se enviarán al recuperar la red.',
+          'Sin conexión: el servicio y los archivos se guardaron localmente y se enviarán automáticamente al recuperar la red.',
         )
         nav('/')
       }
     } catch (e: any) {
-      console.error(e)
       setErr(
         e?.response?.data?.message ||
           e?.message ||
@@ -238,7 +248,6 @@ export default function ServiceNew() {
           rows={4}
         />
 
-        {/* FOTOS */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Fotos (imágenes)
@@ -259,7 +268,6 @@ export default function ServiceNew() {
           )}
         </div>
 
-        {/* ARCHIVOS */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Archivos adjuntos (PDF / Excel)
@@ -281,7 +289,6 @@ export default function ServiceNew() {
           )}
         </div>
 
-        {/* FIRMA */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Firma del cliente
@@ -298,14 +305,14 @@ export default function ServiceNew() {
           <div className="flex gap-2 mt-2">
             <button
               type="button"
-              onClick={clearSignature}
+              onClick={handleClearSignature}
               className="px-3 py-1 text-xs rounded border"
             >
               Limpiar
             </button>
             <button
               type="button"
-              onClick={captureSignature}
+              onClick={handleCaptureSignature}
               className="px-3 py-1 text-xs rounded border bg-black text-white"
             >
               Guardar firma
@@ -313,11 +320,17 @@ export default function ServiceNew() {
           </div>
           {files.signature && (
             <p className="mt-1 text-xs text-green-700">
-              ✔ Firma capturada ({files.signature.name})
+              Firma capturada ({files.signature.name})
+            </p>
+          )}
+          {signErr && (
+            <p className="mt-1 text-xs text-red-600">
+              {signErr}
             </p>
           )}
           <p className="mt-1 text-[11px] text-gray-500">
-            La firma se sube como archivo de tipo SIGNATURE asociado al servicio.
+            La firma se sube como archivo de tipo SIGNATURE asociado al
+            servicio.
           </p>
         </div>
 
@@ -337,7 +350,6 @@ export default function ServiceNew() {
   )
 }
 
-// helper: dataURL -> File
 function dataURLToFile(dataUrl: string, filename: string): File {
   const arr = dataUrl.split(',')
   const mimeMatch = arr[0].match(/:(.*?);/)
