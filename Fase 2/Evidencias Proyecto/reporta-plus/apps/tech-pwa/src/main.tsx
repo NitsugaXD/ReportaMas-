@@ -8,7 +8,6 @@ import ServiceNew from './pages/ServiceNew'
 import ServiceDetail from './pages/ServiceDetail'
 import { useAuth } from './stores/auth'
 import { runSync } from './sync/sync'
-import ServiceEdit from './pages/ServiceEdit'
 
 function Guard({ children }:{children:React.ReactNode}) {
   const user = useAuth(s=>s.user)
@@ -27,7 +26,6 @@ const router = createBrowserRouter([
   { path:'/', element:<Guard><Services/></Guard> },
   { path:'/new', element:<Guard><ServiceNew/></Guard> },
   { path:'/s/:id', element:<Guard><ServiceDetail/></Guard> },
-  { path:'/s/:id/edit', element:<Guard><ServiceEdit/></Guard> },
   { path:'*', element:<div className="p-6">404 <Link className="underline" to="/">Volver</Link></div> },
 ])
 

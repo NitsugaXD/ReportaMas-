@@ -9,7 +9,6 @@ import { APP_GUARD } from '@nestjs/core'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { RolesGuard } from './common/guards/roles.guard'
 import { HealthController } from './health.controller'
-import { MailModule } from './mail/mail.module'
 
 @Module({
   imports: [
@@ -18,12 +17,13 @@ import { MailModule } from './mail/mail.module'
     StorageModule,
     AuthModule,
     ClientsModule,
-    MailModule,
     ServicesModule,
   ],
   controllers: [HealthController],
   providers: [
+    // 1) Primero se autentica (pone el usuario en request)
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // 2) Luego se autorizan las rutas segun roles
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

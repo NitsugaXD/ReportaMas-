@@ -40,7 +40,7 @@
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",
     "nestjs-pino": "^4.4.1",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^6.9.15",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino": "^9.5.0",
@@ -70,6 +70,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "yn": "^5.1.0"
   }
 }

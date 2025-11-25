@@ -1,15 +1,11 @@
-import { IsDateString, IsEnum, IsOptional, IsString, MinLength,IsEmail} from 'class-validator'
+import { IsDateString, IsEnum, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class CreateServiceDto {
   serviceUid: string
   techId?: string
 
   clientId?: string           
-  clientName?: string 
-  
-  @IsOptional()
-  @IsEmail()
-  clientEmail?: string
+  clientName?: string         
 
   siteId?: string             
   siteName?: string           

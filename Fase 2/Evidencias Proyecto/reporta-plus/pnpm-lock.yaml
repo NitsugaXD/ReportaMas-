@@ -71,7 +71,7 @@ importers:
         specifier: ^4.4.1
         version: 4.4.1(@nestjs/common@10.4.20(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@10.5.0)(pino@9.14.0)(rxjs@7.8.2)
       nodemailer:
-        specifier: ^6.10.1
+        specifier: ^6.9.15
         version: 6.10.1
       passport:
         specifier: ^0.7.0
@@ -158,6 +158,9 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
+      yn:
+        specifier: ^5.1.0
+        version: 5.1.0
 
   apps/tech-pwa:
     dependencies:
@@ -4709,6 +4712,10 @@ packages:
   yn@3.1.1:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
     engines: {node: '>=6'}
+
+  yn@5.1.0:
+    resolution: {integrity: sha512-TfXLvT6eVsBNIm8rAXTwJYdQFtOXaHQ+rA7LU8HL8C/BFfaSfhvFE5T1rHAdBCbAj808HaqjXVkmo8jmeGOqhw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -10174,6 +10181,8 @@ snapshots:
       yargs-parser: 21.1.1
 
   yn@3.1.1: {}
+
+  yn@5.1.0: {}
 
   yocto-queue@0.1.0: {}
 
