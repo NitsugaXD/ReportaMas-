@@ -40,3 +40,12 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// Envia el informe de servicio por email
+export async function signAndSendService(
+  id: string,
+  data: { clientEmails: string[]; notes?: string }
+) {
+  const res = await api.patch(`/services/${id}/sign-and-send`, data)
+  return res.data
+}

@@ -259,15 +259,14 @@ export default function ServiceNew() {
             className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
           />
 
-            <input
+          <input
             name="clientEmail"
             type="email"
             value={form.clientEmail}
             onChange={handleChange}
             placeholder="Correo electrónico del cliente (opcional)"
-            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
           />
-
 
           <input
             name="siteName"
@@ -337,7 +336,7 @@ export default function ServiceNew() {
               type="file"
               multiple
               onChange={handleAttachmentsChange}
-              className="text-sm"
+              className="block text-sm file:mr-3 file:py-1 file:px-2 file:border file:border-borderc-light file:dark:border-borderc-dark file:rounded file:bg-brand-primary file:text-white hover:file:bg-brand-hover transition"
             />
             {files.attachments.length > 0 && (
               <ul className="mt-2 text-xs text-tmuted-light dark:text-tmuted-dark list-disc list-inside">
@@ -355,12 +354,22 @@ export default function ServiceNew() {
             <label className="block text-sm font-medium mb-1">
               Firma del cliente
             </label>
-            <div className="border border-borderc-light dark:border-borderc-dark rounded bg-base-light dark:bg-base-dark w-full h-40 overflow-hidden">
+            <div className="border border-borderc-light dark:border-borderc-dark rounded bg-card-light dark:bg-card-dark w-full h-40 overflow-hidden">
               <SignatureCanvas
                 ref={sigRef}
                 penColor="black"
+                backgroundColor={
+                  document.documentElement.classList.contains('dark')
+                    ? "#0B0F18"
+                    : "#FFFFFF"
+                }
                 canvasProps={{
-                  className: 'w-full h-full',
+                  className: 'signature-canvas w-full h-40 rounded outline-none',
+                  style: {
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "0.5rem",
+                  },
                 }}
               />
             </div>
@@ -389,8 +398,7 @@ export default function ServiceNew() {
               <p className="mt-1 text-xs text-red-500">{signErr}</p>
             )}
             <p className="mt-1 text-[11px] text-tmuted-light dark:text-tmuted-dark">
-              La firma se sube como archivo de tipo SIGNATURE asociado al
-              servicio.
+              La firma se sube como archivo de tipo SIGNATURE asociado al servicio.
             </p>
           </div>
 

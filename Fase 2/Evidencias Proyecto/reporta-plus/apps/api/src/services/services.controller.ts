@@ -15,14 +15,26 @@ import { QueryServiceDto } from './dto/query-service.dto'
 import { User } from '../common/decorators/user.decorator'
 import { FileInterceptor } from '@nestjs/platform-express'
 import multer from 'multer'
+import { MailService } from 'src/mail/mail.service'
 
 @Controller('services')
 export class ServicesController {
-  constructor(private readonly svc: ServicesService) {}
+  constructor(private readonly svc: ServicesService,
+    private readonly mailService: MailService
+  ) {}
 
   @Post()
-  create(@Body() dto: CreateServiceDto, @User() user: any) {
-    return this.svc.create(dto, user)
+  async create(@Body() dto: CreateServiceDto, @User() user: any) {
+    const service = await this.svc.create(dto, user);
+    // Enviar correo de notificación al crear el servicio
+    if (dto.clientEmail) {
+      await this.mailService.sendServiceReport({
+        to: [dto.clientEmail],
+        subject: 'Nuevo Servicio Creado',
+        html: `<b>Estimado ${dto.clientName|| ''}, tu servicio ha sido creado exitosamente.</b>`,
+      });
+    }
+    return service;
   }
 
   @Get()
@@ -67,5 +79,14 @@ export class ServicesController {
   ) {
     if (!file) throw new Error('Archivo requerido')
     return this.svc.uploadFile(id, file, (kind ?? 'PHOTO') as any, user)
+  }
+
+  @Patch(':id/sign-and-send')
+  signAndSend(
+    @Param('id') id: string,
+    @Body() dto: UpdateServiceDto,
+    @User() user: any,
+  ) {
+    return this.svc.signAndSend(id, dto, user)
   }
 }

@@ -10,6 +10,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
 import { RolesGuard } from './common/guards/roles.guard'
 import { HealthController } from './health.controller'
 import { MailModule } from './mail/mail.module'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
 
 @Module({
   imports: [
@@ -21,10 +23,13 @@ import { MailModule } from './mail/mail.module'
     MailModule,
     ServicesModule,
   ],
-  controllers: [HealthController],
+  controllers: [
+    HealthController,
+    AppController,],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    AppService
   ],
 })
 export class AppModule {}
