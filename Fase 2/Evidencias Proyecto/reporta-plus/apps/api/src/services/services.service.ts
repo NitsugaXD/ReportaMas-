@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateServiceDto, UpdateServiceDto } from './dto/create-service.dto'
-import { StorageService } from '../storage/storage.service' // 👈 para upload
+import { StorageService } from '../storage/storage.service'
 import { MailService } from '../mail/mail.service'
 import { ServiceStatus } from '@prisma/client'
 
@@ -72,13 +72,28 @@ export class ServicesService {
         type: dto.type,
         notes: dto.notes || null,
         ...(dto.date ? { date: new Date(dto.date) } : {}),
-
+        clientPhone: dto.clientPhone ?? null,
         tech: { connect: { id: techId } },
-        client: { connect: { id: clientId } }, // 👈 requerido
+        client: { connect: { id: clientId } },
         ...(siteId ? { site: { connect: { id: siteId } } } : {}),
       },
       include: { client: true, site: true, tech: true, files: true },
     })
+  }
+  // ---- Eliminar Servicios
+  async remove(id: string, user: { userId: string; role: string }) {
+    const service = await this.prisma.service.findUnique({ where: { id } });
+    if (!service) throw new NotFoundException('Servicio no encontrado');
+    if (user.role === 'TECH' && service.techId !== user.userId) {
+      throw new ForbiddenException('No puedes eliminar este servicio');
+    }
+    // 1. Elimina todos los ServiceFile asociados
+    await this.prisma.serviceFile.deleteMany({ where: { serviceId: id } });
+    // 2. Elimina todos los Report asociados
+    await this.prisma.report.deleteMany({ where: { serviceId: id } });
+    // 3. Se elimina el servicio
+    await this.prisma.service.delete({ where: { id } });
+    return { ok: true };
   }
 
   // ---- Listar
@@ -151,6 +166,7 @@ export class ServicesService {
         ...(dto.type ? { type: dto.type } : {}),
         ...(dto.notes ? { notes: dto.notes } : {}),
         ...(dto.status ? { status: dto.status as any } : {}),
+        ...(dto.clientPhone ? { clientPhone: dto.clientPhone } : {}), // ⬅️ AHORA SE ACTUALIZA EL TELÉFONO
         version: { increment: 1 },
       },
     })
@@ -182,6 +198,7 @@ export class ServicesService {
       data: {
         ...(dto.type ? { type: dto.type } : {}),
         ...(dto.notes ? { notes: dto.notes } : {}),
+        ...(dto.clientPhone ? { clientPhone: dto.clientPhone } : {}),
         status: (dto.status as any) ?? ServiceStatus.SIGNED,
         version: { increment: 1 },
       },

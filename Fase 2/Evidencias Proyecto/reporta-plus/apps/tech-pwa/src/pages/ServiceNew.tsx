@@ -12,6 +12,7 @@ type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 type FormState = {
   clientName: string
   clientEmail: string
+  clientPhone: string
   siteName: string
   siteAddress: string
   type: string
@@ -33,6 +34,7 @@ export default function ServiceNew() {
   const [form, setForm] = useState<FormState>({
     clientName: '',
     clientEmail: '',
+    clientPhone: '',
     siteName: '',
     siteAddress: '',
     type: 'Servicio informático',
@@ -172,6 +174,7 @@ export default function ServiceNew() {
         serviceUid,
         clientName: form.clientName,
         clientEmail: form.clientEmail || undefined,
+        clientPhone: form.clientPhone,
         siteName: form.siteName,
         siteAddress: form.siteAddress,
         type: form.type,
@@ -222,94 +225,132 @@ export default function ServiceNew() {
   }
 
   function handleCancel() {
-    nav(-1)
+    nav('/')
   }
 
   return (
-    <div className="min-h-screen px-4 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold tracking-tight">
-            Nuevo servicio
-          </h1>
+    <div className="min-h-screen px-1 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors flex flex-col items-center relative overflow-hidden">
+      {/* Fondos decorativos */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 -right-24 w-64 h-64 rounded-full bg-brand-soft blur-3xl opacity-70 dark:bg-brand-darkSoft" />
+        <div className="absolute -bottom-32 -left-16 w-72 h-72 rounded-full bg-accent-light blur-3xl opacity-60 dark:bg-accent-dark" />
+      </div>
+      <div className="z-10 w-full max-w-md sm:max-w-lg flex flex-col gap-6">
+        <div className="flex justify-between items-center mb-2">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Crear Nuevo Servicio</h1>
           <button
             type="button"
             onClick={handleCancel}
-            className="text-sm underline text-brand-primary hover:text-brand-hover transition"
+            className="px-3 py-1.5 rounded-full text-brand-primary bg-transparent border-2 border-brand-primary hover:bg-brand-soft dark:hover:bg-brand-darkSoft font-semibold shadow-sm transition text-sm"
           >
             Cancelar
           </button>
         </div>
 
         {err && (
-          <div className="mb-3 text-sm border rounded px-3 py-2 border-red-300 bg-red-50 text-red-700">
+          <div className="mb-2 text-sm border border-red-300 rounded px-3 py-2 bg-red-50 text-red-700">
             {err}
           </div>
         )}
 
         <form
           onSubmit={onSubmit}
-          className="space-y-3 rounded-xl p-4 shadow-sm border bg-card-light border-borderc-light dark:bg-card-dark dark:border-borderc-dark"
+          className="space-y-4 rounded-xl p-4 shadow-sm border bg-card-light border-borderc-light dark:bg-card-dark dark:border-borderc-dark"
         >
-          <input
-            name="clientName"
-            value={form.clientName}
-            onChange={handleChange}
-            placeholder="Nombre del cliente"
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-          />
-
-          <input
-            name="clientEmail"
-            type="email"
-            value={form.clientEmail}
-            onChange={handleChange}
-            placeholder="Correo electrónico del cliente (opcional)"
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-          />
-
-          <input
-            name="siteName"
-            value={form.siteName}
-            onChange={handleChange}
-            placeholder="Nombre del sitio (ej: Parque de Nogales)"
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-          />
-
-          <input
-            name="siteAddress"
-            value={form.siteAddress}
-            onChange={handleChange}
-            placeholder="Dirección"
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-          />
-
-          <select
-            name="type"
-            value={form.type}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark"
-          >
-            <option value="Mantención">Mantención</option>
-            <option value="Servicio técnico">Servicio técnico</option>
-            <option value="Servicio informático">Servicio informático</option>
-          </select>
-
-          <textarea
-            name="notes"
-            value={form.notes}
-            onChange={handleChange}
-            placeholder="Observaciones / sugerencias"
-            className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            rows={4}
-          />
-
-          {/* FOTOS */}
+          {/* Nombre Cliente */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Fotos (imágenes)
+            <label className="block text-sm font-semibold mb-1">
+              Nombre Cliente
             </label>
+            <input
+              name="clientName"
+              value={form.clientName}
+              onChange={handleChange}
+              placeholder="Ej: Juan Pérez"
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
 
+          {/* Correo Electronico */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Correo Electrónico del Cliente
+            </label>
+            <input
+              name="clientEmail"
+              type="email"
+              value={form.clientEmail}
+              onChange={handleChange}
+              placeholder="Ej: cliente@email.com"
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
+
+          {/* Telefono/Celular */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Teléfono/Celular
+            </label>
+            <input
+              name="clientPhone"
+              type="tel"
+              value={form.clientPhone}
+              onChange={handleChange}
+              placeholder="Ej: +56 9 1234 5678"
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
+
+          {/* Nombre del edificio/casa */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Nombre del edificio/casa
+            </label>
+            <input
+              name="siteName"
+              value={form.siteName}
+              onChange={handleChange}
+              placeholder="Ej: Parque los Nogales"
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
+
+          {/* Dirección Completa */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Dirección Completa
+            </label>
+            <input
+              name="siteAddress"
+              value={form.siteAddress}
+              onChange={handleChange}
+              placeholder="Ej: Los Álamos #1234, Colina"
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
+
+          {/* Tipo de servicio */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Tipo de servicio
+            </label>
+            <select
+              name="type"
+              value={form.type}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark"
+            >
+              <option value="Servicio técnico">Servicio Técnico</option>
+              <option value="Mantención">Mantención</option>
+              <option value="Servicio informático">Servicio Informático</option>
+            </select>
+          </div>
+
+          {/* Fotografías */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Fotografías
+            </label>
             <button
               type="button"
               onClick={openPhotoSourceModal}
@@ -317,7 +358,6 @@ export default function ServiceNew() {
             >
               Añadir foto
             </button>
-
             {files.photos.length > 0 && (
               <ul className="mt-2 text-xs text-tmuted-light dark:text-tmuted-dark list-disc list-inside">
                 {files.photos.map((f, i) => (
@@ -327,10 +367,10 @@ export default function ServiceNew() {
             )}
           </div>
 
-          {/* ARCHIVOS ADJUNTOS */}
+          {/* Adjuntar archivos */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Archivos adjuntos (PDF / Excel)
+            <label className="block text-sm font-semibold mb-1">
+              Adjuntar archivos (PDF/Excel)
             </label>
             <input
               type="file"
@@ -349,10 +389,10 @@ export default function ServiceNew() {
             )}
           </div>
 
-          {/* FIRMA */}
+          {/* Firma de cliente */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Firma del cliente
+            <label className="block text-sm font-semibold mb-1">
+              Firma de cliente
             </label>
             <div className="border border-borderc-light dark:border-borderc-dark rounded bg-card-light dark:bg-card-dark w-full h-40 overflow-hidden">
               <SignatureCanvas
@@ -403,13 +443,13 @@ export default function ServiceNew() {
           </div>
 
           <button
+            type="submit"
             disabled={loading}
-            className="w-full px-4 py-2 rounded font-medium text-white bg-gradient-to-r from-brand-primary to-accent-light dark:from-brand-darkPrimary dark:to-accent-dark hover:brightness-110 active:scale-[0.98] transition disabled:opacity-70"
+            className="w-full px-4 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light dark:from-brand-darkPrimary dark:to-accent-dark hover:brightness-110 active:scale-[0.98] transition disabled:opacity-70"
           >
-            {loading ? 'Creando...' : 'Crear servicio'}
+            {loading ? 'Creando...' : 'Crear Servicio'}
           </button>
         </form>
-
         <p className="text-xs mt-2 text-tmuted-light dark:text-tmuted-dark">
           Si no hay conexión, el servicio y los archivos se guardarán en el
           dispositivo y se enviarán automáticamente al recuperar la red.
@@ -424,7 +464,6 @@ export default function ServiceNew() {
             <p className="text-xs text-tmuted-light dark:text-tmuted-dark">
               Elige cómo deseas cargar la imagen.
             </p>
-
             <button
               type="button"
               onClick={chooseGallery}
@@ -432,7 +471,6 @@ export default function ServiceNew() {
             >
               Elegir desde galería
             </button>
-
             <button
               type="button"
               onClick={chooseCamera}
@@ -440,7 +478,6 @@ export default function ServiceNew() {
             >
               Tomar foto con cámara
             </button>
-
             <button
               type="button"
               onClick={() => setShowPhotoSource(false)}

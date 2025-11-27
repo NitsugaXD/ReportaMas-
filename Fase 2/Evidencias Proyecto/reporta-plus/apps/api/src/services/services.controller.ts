@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Delete,
   Param,
   Patch,
   Post,
@@ -88,5 +89,10 @@ export class ServicesController {
     @User() user: any,
   ) {
     return this.svc.signAndSend(id, dto, user)
+  }
+  
+  @Delete(':id')
+  async remove(@Param('id') id: string, @User() user: any) {
+    return this.svc.remove(id, user)
   }
 }

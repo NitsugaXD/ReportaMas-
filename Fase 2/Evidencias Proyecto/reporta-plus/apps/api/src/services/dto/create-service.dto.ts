@@ -11,6 +11,9 @@ export class CreateServiceDto {
   @IsEmail()
   clientEmail?: string
 
+  @IsOptional()
+  clientPhone?: string
+
   siteId?: string
   siteName?: string
   siteAddress?: string
@@ -31,7 +34,10 @@ export class UpdateServiceDto {
   @IsOptional() @IsString() type?: string
   @IsOptional() @IsString() notes?: string
   @IsOptional() @IsEnum(ServiceStatusDto) status?: ServiceStatusDto
-  @IsOptional() version?: number // control de versión
+  @IsOptional() version?: number
+
+  @IsOptional()
+  clientPhone?: string
 
   @IsArray()
   @IsEmail({}, { each: true })

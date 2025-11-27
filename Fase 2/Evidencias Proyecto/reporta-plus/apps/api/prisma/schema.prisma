@@ -52,6 +52,7 @@ model Site {
 model Service {
   id         String        @id @default(uuid())
   serviceUid String        @unique
+  clientPhone String?
   techId     String
   clientId   String
   siteId     String?

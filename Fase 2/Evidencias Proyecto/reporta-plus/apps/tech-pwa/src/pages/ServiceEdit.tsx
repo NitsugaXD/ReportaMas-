@@ -8,6 +8,7 @@ import Loader from '../components/Loader'
 
 type FormState = {
   clientName: string
+  clientPhone: string
   siteName: string
   siteAddress: string
   type: string
@@ -20,6 +21,7 @@ export default function ServiceEdit() {
 
   const [form, setForm] = useState<FormState>({
     clientName: '',
+    clientPhone: '',
     siteName: '',
     siteAddress: '',
     type: 'Servicio informático',
@@ -41,6 +43,7 @@ export default function ServiceEdit() {
 
         setForm({
           clientName: data.client?.name ?? '',
+          clientPhone: data.clientPhone ?? '',
           siteName: data.site?.name ?? '',
           siteAddress: data.site?.address ?? '',
           type: data.type ?? 'Servicio informático',
@@ -80,6 +83,7 @@ export default function ServiceEdit() {
     try {
       await api.patch(`/services/${id}`, {
         clientName: form.clientName,
+        clientPhone: form.clientPhone,
         siteName: form.siteName,
         siteAddress: form.siteAddress,
         type: form.type,
@@ -105,8 +109,13 @@ export default function ServiceEdit() {
   if (loading) return <Loader />
 
   return (
-    <div className="min-h-screen px-4 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors">
-      <div className="max-w-lg mx-auto">
+    <div className="min-h-screen px-1 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors relative flex flex-col items-center overflow-hidden">
+      {/* Fondos decorativos */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 -right-24 w-64 h-64 rounded-full bg-brand-soft blur-3xl opacity-70 dark:bg-brand-darkSoft" />
+        <div className="absolute -bottom-32 -left-16 w-72 h-72 rounded-full bg-accent-light blur-3xl opacity-60 dark:bg-accent-dark" />
+      </div>
+      <div className="z-10 w-full max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-semibold tracking-tight">Editar servicio</h1>
           <AnimatedButton
@@ -126,46 +135,89 @@ export default function ServiceEdit() {
 
         <form
           onSubmit={onSubmit}
-          className="space-y-3 rounded-xl p-4 shadow-sm border bg-card-light border-borderc-light dark:bg-card-dark dark:border-borderc-dark"
+          className="space-y-4 rounded-xl p-4 shadow-sm border bg-card-light border-borderc-light dark:bg-card-dark dark:border-borderc-dark"
         >
-          <AnimatedInput
-            name="clientName"
-            value={form.clientName}
-            onChange={handleChange}
-            placeholder="Nombre del cliente"
-          />
+          {/* Nombre Cliente */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Nombre cliente
+            </label>
+            <AnimatedInput
+              name="clientName"
+              value={form.clientName}
+              onChange={handleChange}
+              placeholder="Ej: Juan Pérez"
+            />
+          </div>
 
-          <AnimatedInput
-            name="siteName"
-            value={form.siteName}
-            onChange={handleChange}
-            placeholder="Nombre del sitio (ej: Parque de Nogales)"
-          />
+          {/* Telefono/Celular */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Teléfono/Celular
+            </label>
+            <AnimatedInput
+              name="clientPhone"
+              value={form.clientPhone}
+              onChange={handleChange}
+              placeholder="Ej: +56 9 1234 5678"
+            />
+          </div>
 
-          <AnimatedInput
-            name="siteAddress"
-            value={form.siteAddress}
-            onChange={handleChange}
-            placeholder="Dirección"
-          />
+          {/* Nombre del edificio/casa */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Nombre del edificio/casa
+            </label>
+            <AnimatedInput
+              name="siteName"
+              value={form.siteName}
+              onChange={handleChange}
+              placeholder="Nombre del sitio (ej: Parque de Nogales)"
+            />
+          </div>
 
-          <AnimatedSelect
-            name="type"
-            value={form.type}
-            onChange={handleChange}
-          >
-            <option value="Mantención">Mantención</option>
-            <option value="Servicio técnico">Servicio técnico</option>
-            <option value="Servicio informático">Servicio informático</option>
-          </AnimatedSelect>
+          {/* Dirección Completa */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Dirección completa
+            </label>
+            <AnimatedInput
+              name="siteAddress"
+              value={form.siteAddress}
+              onChange={handleChange}
+              placeholder="Dirección completa"
+            />
+          </div>
 
-          <AnimatedTextarea
-            name="notes"
-            value={form.notes}
-            onChange={handleChange}
-            placeholder="Observaciones / sugerencias"
-            rows={4}
-          />
+          {/* Tipo de servicio */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Tipo de servicio
+            </label>
+            <AnimatedSelect
+              name="type"
+              value={form.type}
+              onChange={handleChange}
+            >
+              <option value="Mantención">Mantención</option>
+              <option value="Servicio técnico">Servicio técnico</option>
+              <option value="Servicio informático">Servicio informático</option>
+            </AnimatedSelect>
+          </div>
+
+          {/* Observaciones */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Observaciones
+            </label>
+            <AnimatedTextarea
+              name="notes"
+              value={form.notes}
+              onChange={handleChange}
+              placeholder="Observaciones / sugerencias"
+              rows={4}
+            />
+          </div>
 
           <AnimatedButton
             type="submit"
