@@ -2,8 +2,9 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../stores/auth'
-// Ajusta la ruta/nombre si tu logo se llama distinto
 import logo from '../assets/logo-reporta-plus.png'
+import AnimatedButton from '../components/AnimatedButton'
+import Loader from '../components/Loader'
 
 export default function Login() {
   const nav = useNavigate()
@@ -55,6 +56,8 @@ export default function Login() {
       setLoading(false)
     }
   }
+  
+  if(loading) return <Loader />
 
   return (
     <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-base-light via-card-light to-base-light dark:from-base-dark dark:via-card-dark dark:to-base-dark text-tmain-light dark:text-tmain-dark transition-colors relative overflow-hidden">
@@ -63,7 +66,6 @@ export default function Login() {
         <div className="absolute -top-32 -right-24 w-64 h-64 rounded-full bg-brand-soft blur-3xl opacity-70 dark:bg-brand-darkSoft" />
         <div className="absolute -bottom-32 -left-16 w-72 h-72 rounded-full bg-accent-light blur-3xl opacity-60 dark:bg-accent-dark" />
       </div>
-
       <div className="relative w-full max-w-md px-4">
         <div className="mb-6 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -89,19 +91,16 @@ export default function Login() {
               </div>
             </div>
           </div>
-
-          <button
+          <AnimatedButton
             type="button"
             onClick={() => setIsDark((v) => !v)}
             className="px-3 py-1 text-xs rounded-full border border-borderc-light bg-card-light text-tmuted-light hover:bg-base-light active:scale-[0.98] transition dark:border-borderc-dark dark:bg-card-dark dark:text-tmuted-dark dark:hover:bg-base-dark"
           >
             {isDark ? 'Modo claro' : 'Modo oscuro'}
-          </button>
+          </AnimatedButton>
         </div>
-
         <div className="rounded-2xl border border-borderc-light dark:border-borderc-dark bg-card-light/90 dark:bg-card-dark/90 shadow-xl backdrop-blur-md overflow-hidden">
           <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-accent-light to-brand-primary dark:from-brand-darkPrimary dark:via-accent-dark dark:to-brand-darkPrimary animate-pulse" />
-
           <div className="px-6 py-6 space-y-4">
             <div className="space-y-1">
               <h1 className="text-xl font-semibold tracking-tight">
@@ -112,13 +111,11 @@ export default function Login() {
                 registrar tus servicios en terreno.
               </p>
             </div>
-
             {err && (
               <div className="text-xs border border-red-300 bg-red-50 text-red-700 rounded px-3 py-2">
                 {err}
               </div>
             )}
-
             <form onSubmit={onSubmit} className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-tmuted-light dark:text-tmuted-dark">
@@ -133,7 +130,6 @@ export default function Login() {
                   autoComplete="email"
                 />
               </div>
-
               <div className="space-y-1">
                 <label className="text-xs font-medium text-tmuted-light dark:text-tmuted-dark">
                   Contraseña
@@ -147,16 +143,14 @@ export default function Login() {
                   autoComplete="current-password"
                 />
               </div>
-
-              <button
+              <AnimatedButton
                 type="submit"
                 disabled={loading}
-                className="mt-2 w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light dark:from-brand-darkPrimary dark:to-accent-dark shadow-md hover:brightness-110 active:scale-[0.98] transition disabled:opacity-70"
+                className="mt-2 w-full"
               >
                 {loading ? 'Ingresando...' : 'Entrar'}
-              </button>
+              </AnimatedButton>
             </form>
-
             <p className="text-[11px] text-center text-tmuted-light dark:text-tmuted-dark pt-1">
               Si olvidaste tus credenciales, contacta al administrador o
               supervisor.

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import api from '../api/client'
-import SignatureCanvas from 'react-signature-canvas'
+import Loader from '../components/Loader'
+import AnimatedButton from '../components/AnimatedButton'
+import { motion } from 'framer-motion'
 
 function getStatusLabel(status: string) {
   switch (status) {
@@ -37,21 +39,11 @@ type Service = {
 
 export default function ServiceDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  
   const [svc, setSvc] = useState<Service | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-
-  const [file, setFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadErr, setUploadErr] = useState('')
-
-  const [showPhotoSource, setShowPhotoSource] = useState(false)
-  const cameraInput = useRef<HTMLInputElement | null>(null)
-  const fileInput = useRef<HTMLInputElement | null>(null)
-
-  const sigRef = useRef<SignatureCanvas | null>(null)
-  const [savingSign, setSavingSign] = useState(false)
-  const [signErr, setSignErr] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -73,307 +65,157 @@ export default function ServiceDetail() {
     }
   }, [id])
 
-  if (loading) return <div className="p-4">Cargando...</div>
+  if (loading) return <Loader />
   if (err) return <div className="p-4 text-red-600">{err}</div>
   if (!svc) return <div className="p-4">Servicio no encontrado</div>
 
   const photos = svc.files.filter((f) => f.kind === 'PHOTO')
   const signatures = svc.files.filter((f) => f.kind === 'SIGNATURE')
   const otherFiles = svc.files.filter((f) => f.kind === 'PDF' || f.kind === 'XLSX')
-
   const dateStr = new Date(svc.date).toLocaleString()
 
-  // --- UPLOAD FILE ---
-  async function handleUpload(kind: FileKind) {
-    if (!file) return
-    if (!svc) return
-
-    try {
-      setUploading(true)
-      setUploadErr('')
-
-      const fd = new FormData()
-      fd.append('file', file)
-
-      const { data } = await api.post(
-        `/services/${svc.id}/files?kind=${kind}`,
-        fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      )
-
-      setSvc((prev) => (prev ? { ...prev, files: [...prev.files, data] } : prev))
-      setFile(null)
-      setShowPhotoSource(false)
-    } catch (e: any) {
-      setUploadErr(e?.response?.data?.message || 'Error al subir archivo')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  // --- SIGNATURE ---
-  async function handleSaveSignature() {
-    if (!svc) return
-
-    try {
-      setSignErr('')
-      setSavingSign(true)
-      const sig = sigRef.current
-      if (!sig || sig.isEmpty()) {
-        setSignErr('Primero dibuja la firma.')
-        return
-      }
-
-      const dataUrl = sig.toDataURL('image/png')
-      const res = await fetch(dataUrl)
-      const blob = await res.blob()
-
-      const fd = new FormData()
-      fd.append('file', blob, 'firma.png')
-
-      const { data } = await api.post(
-        `/services/${svc.id}/files?kind=SIGNATURE`,
-        fd
-      )
-
-      await api.patch(`/services/${svc.id}`, { status: 'DONE' })
-
-      setSvc((prev) =>
-        prev
-          ? { ...prev, status: 'DONE', files: [...prev.files, data] }
-          : prev
-      )
-
-      sig.clear()
-    } catch (e: any) {
-      setSignErr('Error al guardar la firma')
-    } finally {
-      setSavingSign(false)
-    }
-  }
-
-  function chooseCamera() {
-    setShowPhotoSource(false)
-    cameraInput.current?.click()
-  }
-
-  function chooseFile() {
-    setShowPhotoSource(false)
-    fileInput.current?.click()
-  }
-
   return (
-    <div className="min-h-screen px-4 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="min-h-screen px-1 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors flex flex-col items-center">
+      <div className="w-full max-w-md sm:max-w-2xl flex flex-col gap-6">
 
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">
-            {svc.type} — {svc.site?.name || svc.client?.name}
+        {/* VOLVER */}
+        <div className="flex justify-start mb-1">
+          <AnimatedButton
+            type="button"
+            onClick={() => navigate(-1)}
+            className="px-3 py-1.5 rounded-full text-brand-primary bg-transparent border-2 border-brand-primary hover:bg-brand-soft dark:hover:bg-brand-darkSoft font-semibold shadow-sm transition text-sm"
+          >
+            ← Volver
+          </AnimatedButton>
+        </div>
+
+        {/* TITULO */}
+        <div>
+          <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-center sm:text-left">
+            {svc.type} — {svc.site?.name || svc.client?.name || 'Sin nombre'}
           </h1>
-          <div className="flex gap-2">
-            <Link
-              to={`/s/${svc.id}/edit`}
-              className="px-3 py-1 text-xs rounded border border-borderc-light dark:border-borderc-dark hover:bg-base-light dark:hover:bg-base-dark transition"
-            >
-              Editar
-            </Link>
-
-            <Link
-              to="/"
-              className="px-3 py-1 text-xs rounded text-brand-primary hover:text-brand-hover transition"
-            >
-              ← Volver
-            </Link>
-          </div>
         </div>
 
         {/* DATOS PRINCIPALES */}
-        <div className="rounded-xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark p-4 space-y-1 shadow-sm">
-          <p><span className="font-semibold">Cliente:</span> {svc.client?.name}</p>
-          <p><span className="font-semibold">Sitio:</span> {svc.site?.name} {svc.site?.address ? `— ${svc.site.address}` : ''}</p>
-          <p><span className="font-semibold">Técnico:</span> {svc.tech?.name}</p>
-          <p><span className="font-semibold">Fecha:</span> {dateStr}</p>
-          <p>
-            <span className="font-semibold">Estado:</span>{' '}
-            {getStatusLabel(svc.status)}
-          </p>
-
+        <div className="rounded-2xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark shadow p-5 space-y-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm md:text-base">
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Cliente:</span>{" "}
+              <span className="font-medium">{svc.client?.name}</span>
+            </span>
+            <span className="text-sm md:text-base">
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Sitio:</span>{" "}
+              <span className="font-medium">{svc.site?.name}</span>
+              {svc.site?.address && (
+                <span className="text-tmuted-light dark:text-tmuted-dark text-xs ml-1">— {svc.site.address}</span>
+              )}
+            </span>
+            <span className="text-sm md:text-base">
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Técnico:</span>{" "}
+              <span className="font-medium">{svc.tech?.name}</span>
+            </span>
+            <span className="text-sm md:text-base">
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Fecha:</span>{" "}
+              <span className="font-medium">{dateStr}</span>
+            </span>
+            <span className="text-sm md:text-base">
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Estado:</span>{" "}
+              <span className="font-medium">{getStatusLabel(svc.status)}</span>
+            </span>
+          </div>
           {svc.notes && (
-            <p className="pt-2">
-              <span className="font-semibold">Notas:</span>
-              <br />
-              {svc.notes}
-            </p>
+            <div>
+              <span className="font-semibold text-accent-light dark:text-accent-dark">Notas:</span>
+              <div className="whitespace-pre-line text-base mt-0.5 text-tmain-light dark:text-tmain-dark">{svc.notes}</div>
+            </div>
           )}
         </div>
 
         {/* FOTOS */}
-        <div className="rounded-xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold">Fotos</h2>
-
-            <button
-              onClick={() => setShowPhotoSource(true)}
-              disabled={uploading}
-              className="px-3 py-1 text-sm text-white bg-brand-primary hover:bg-brand-hover rounded active:scale-[0.98] transition disabled:opacity-40"
-            >
-              Añadir foto
-            </button>
-          </div>
-
-          {uploadErr && (
-            <p className="text-red-500 text-xs mb-2">{uploadErr}</p>
-          )}
-
+        <div className="rounded-2xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark shadow p-5">
+          <div className="font-semibold mb-3 text-accent-light dark:text-accent-dark">Fotos</div>
           {photos.length === 0 && (
-            <p className="text-tmuted-light dark:text-tmuted-dark text-sm">
-              No hay fotos.
-            </p>
+            <div className="text-sm text-tmuted-light dark:text-tmuted-dark">
+              No hay fotos cargadas.
+            </div>
           )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {photos.map((f) => (
               <a
                 key={f.id}
                 href={f.url}
                 target="_blank"
                 rel="noreferrer"
-                className="border border-borderc-light dark:border-borderc-dark rounded overflow-hidden hover:shadow-md transition"
+                className="flex items-center justify-center border border-borderc-light dark:border-borderc-dark rounded-xl overflow-hidden group hover:scale-[1.025] transition"
+                style={{ background: "#181922" }}
               >
-                <img src={f.url} className="w-full h-32 object-cover" />
+                <img
+                  src={f.url}
+                  className="object-contain w-full max-h-64 min-h-[12rem] shadow-lg rounded-xl group-hover:brightness-110 transition"
+                  alt="Foto"
+                />
               </a>
             ))}
           </div>
         </div>
 
         {/* FIRMA */}
-        <div className="rounded-xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark p-4 shadow-sm">
-          <h2 className="font-semibold mb-2">Firma del cliente</h2>
-
-          {signatures.length > 0 && (
-            <div className="mb-3">
+        <div className="rounded-2xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark shadow p-5">
+          <div className="font-semibold mb-3 text-accent-light dark:text-accent-dark">Firma del cliente</div>
+          {signatures.length === 0 ? (
+            <div className="text-sm text-tmuted-light dark:text-tmuted-dark italic">No hay firma registrada.</div>
+          ) : (
+            <div className="flex items-center justify-center p-2">
               <img
                 src={signatures[0].url}
                 alt="Firma"
-                className="w-64 h-auto border border-borderc-light dark:border-borderc-dark rounded"
+                className="max-h-40 max-w-xs border border-borderc-light dark:border-borderc-dark rounded bg-white dark:bg-base-dark shadow-md"
+                style={{ width: "100%", objectFit: "contain" }}
               />
             </div>
           )}
-
-          <div className="border border-borderc-light dark:border-borderc-dark rounded bg-base-light dark:bg-base-dark overflow-hidden">
-            <SignatureCanvas
-              ref={sigRef}
-              penColor="black"
-              canvasProps={{
-                width: 600,
-                height: 200,
-                className: 'w-full h-48',
-              }}
-            />
-          </div>
-
-          {signErr && <p className="text-red-500 text-xs mt-1">{signErr}</p>}
-
-          <div className="flex gap-2 mt-3 flex-wrap">
-            <button
-              onClick={() => sigRef.current?.clear()}
-              className="px-3 py-1 rounded border border-borderc-light dark:border-borderc-dark text-sm"
-            >
-              Limpiar
-            </button>
-
-            <button
-              disabled={savingSign}
-              onClick={handleSaveSignature}
-              className="px-3 py-1 text-sm rounded bg-brand-primary text-white hover:bg-brand-hover active:scale-[0.98] transition disabled:opacity-40"
-            >
-              Guardar firma
-            </button>
-          </div>
         </div>
 
         {/* ARCHIVOS PDF/EXCEL */}
-        <div className="rounded-xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark p-4 shadow-sm">
-          <h2 className="font-semibold mb-2">Otros archivos</h2>
-
+        <div className="rounded-2xl border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark shadow p-5">
+          <div className="font-semibold mb-3 text-accent-light dark:text-accent-dark">Otros archivos</div>
           {otherFiles.length === 0 && (
-            <p className="text-tmuted-light dark:text-tmuted-dark text-sm">
+            <div className="text-sm text-tmuted-light dark:text-tmuted-dark">
               No hay archivos PDF/Excel.
-            </p>
+            </div>
           )}
-
-          <ul className="space-y-1">
+          <ul className="flex flex-col gap-2">
             {otherFiles.map((f) => (
               <li key={f.id}>
                 <a
                   href={f.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-brand-primary underline hover:text-brand-hover transition text-sm"
+                  className="inline-block px-4 py-2 rounded-lg bg-gradient-to-r from-brand-primary to-accent-light text-white shadow-md font-semibold text-base hover:brightness-110 hover:scale-105 active:scale-97 transition"
                 >
-                  {f.kind === 'PDF' ? 'Informe PDF' : 'Reporte Excel'} (
-                  {f.id.slice(0, 8)}…)
+                  {f.kind === 'PDF' ? 'Informe PDF' : 'Reporte Excel'} 
+                  <span className="ml-2 text-xs font-normal text-tmuted-light dark:text-tmuted-dark">
+                    ({f.id.slice(0, 8)}…)
+                  </span>
                 </a>
               </li>
             ))}
           </ul>
         </div>
-      </div>
 
-      {/* MODAL */}
-      {showPhotoSource && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg border border-borderc-light dark:border-borderc-dark shadow-xl w-72 space-y-3">
-            <h3 className="text-center font-semibold mb-2">Agregar foto</h3>
-
-            <button
-              onClick={chooseCamera}
-              className="w-full px-4 py-2 rounded text-white bg-brand-primary hover:bg-brand-hover active:scale-[0.98] transition"
+        {/* EDITAR (al fondo) */}
+        <div className="flex justify-end mt-4">
+          <motion.div whileTap={{ scale: 0.94 }}>
+            <Link
+              to={`/s/${svc.id}/edit`}
+              className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light shadow hover:brightness-110 focus:ring-2 focus:ring-brand-primary active:scale-95 transition text-base"
+              style={{ minWidth: 91 }}
             >
-              Tomar foto con cámara
-            </button>
-            <button
-              onClick={chooseFile}
-              className="w-full px-4 py-2 rounded border border-borderc-light dark:border-borderc-dark hover:bg-base-light dark:hover:bg-base-dark transition"
-            >
-              Elegir de la galería
-            </button>
-
-            <button
-              onClick={() => setShowPhotoSource(false)}
-              className="w-full px-4 py-2 text-sm mt-1 rounded text-tmuted-light dark:text-tmuted-dark hover:text-brand-primary transition"
-            >
-              Cancelar
-            </button>
-          </div>
-
-          <input
-            ref={cameraInput}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0] || null
-              setFile(f)
-              if (f) handleUpload('PHOTO')
-            }}
-          />
-
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0] || null
-              setFile(f)
-              if (f) handleUpload('PHOTO')
-            }}
-          />
+              Editar
+            </Link>
+          </motion.div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import api from '../api/client'
 import { useAuth } from '../stores/auth'
 import logo from '../assets/logo-reporta-plus.png'
+import AnimatedButton from '../components/AnimatedButton'
+import Loader from '../components/Loader'
+import { motion } from 'framer-motion'
 
 type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 
@@ -85,28 +88,28 @@ export default function Services() {
   }, [isDark])
 
   function handleSync() {
-    // Aquí después podemos llamar a la lógica real de sincronización offline.
-    // Por ahora solo mostramos un aviso para no romper nada.
     alert(
-      'Sincronización offline: pendiente de implementar (cuando definamos el flujo completo de outbox).',
+      'Sincronización offline: pendiente de implementar (cuando definamos el flujo completo de outbox).'
     )
   }
 
   return (
     <div className="min-h-screen px-4 py-6 bg-base-light text-tmain-light dark:bg-base-dark dark:text-tmain-dark transition-colors">
       <div className="max-w-3xl mx-auto relative">
+
         {/* HEADER */}
         <header className="flex items-center gap-2 mb-4">
-          {/* Botón hamburguesa */}
-          <button
+
+          {/* Botón menú hamburguesa */}
+          <AnimatedButton
             type="button"
             onClick={() => setShowMenu(true)}
-            className="flex flex-col justify-center gap-0.5 w-9 h-9 rounded-lg border border-borderc-light bg-card-light hover:bg-base-light active:scale-[0.96] transition dark:border-borderc-dark dark:bg-card-dark dark:hover:bg-base-dark"
+            className="flex flex-col justify-center gap-0.5 w-9 h-9 rounded-lg border border-borderc-light bg-card-light hover:bg-base-light active:scale-[0.96] transition dark:border-borderc-dark dark:bg-card-dark dark:hover:bg-base-dark !py-0 !px-0"
           >
             <span className="block h-[2px] w-4 mx-auto rounded bg-tmain-light dark:bg-tmain-dark" />
             <span className="block h-[2px] w-4 mx-auto rounded bg-tmain-light dark:bg-tmain-dark" />
             <span className="block h-[2px] w-4 mx-auto rounded bg-tmain-light dark:bg-tmain-dark" />
-          </button>
+          </AnimatedButton>
 
           {/* Buscador */}
           <input
@@ -116,26 +119,25 @@ export default function Services() {
             onChange={(e) => setQ(e.target.value)}
           />
 
-          <button
+          <AnimatedButton
+            type="button"
             onClick={() => fetchServices(q)}
-            className="px-3 py-2 rounded text-sm font-medium text-white bg-brand-primary hover:bg-brand-hover active:scale-[0.98] hover:shadow-md transition"
+            className="text-sm font-medium"
           >
             Buscar
-          </button>
-
-          <Link
-            to="/new"
-            className="px-3 py-2 rounded text-sm font-medium text-white bg-brand-primary hover:bg-brand-hover active:scale-[0.98] hover:shadow-md transition"
-          >
-            Nuevo
-          </Link>
+          </AnimatedButton>
+          
+          <motion.div whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.04 }}>
+            <Link
+              to="/new"
+              className="px-4 py-2 rounded font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light shadow-md hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-accent-light active:scale-95 text-sm font-medium"
+            >
+              Nuevo
+            </Link>
+          </motion.div>
         </header>
 
-        {loading && (
-          <p className="text-xs text-tmuted-light dark:text-tmuted-dark mb-2">
-            Buscando...
-          </p>
-        )}
+        {loading && <Loader />}
 
         {/* LISTA DE SERVICIOS */}
         <ul className="space-y-3">
@@ -155,7 +157,6 @@ export default function Services() {
                     className="w-16 h-16 rounded object-cover flex-shrink-0"
                   />
                 )}
-
                 <div className="flex-1">
                   <div className="font-semibold text-sm">
                     {s.type} • {titleName}
@@ -168,13 +169,14 @@ export default function Services() {
                     UID: {s.serviceUid}
                   </div>
                 </div>
-
-                <Link
-                  to={`/s/${s.id}`}
-                  className="text-sm underline mt-1 text-brand-primary hover:text-brand-hover transition"
-                >
-                  Ver
-                </Link>
+                <motion.div whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.04 }}>
+                  <Link
+                    to={`/s/${s.id}`}
+                    className="px-4 py-2 rounded font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light shadow-md hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-accent-light active:scale-95 text-sm underline mt-1"
+                  >
+                    Ver
+                  </Link>
+                </motion.div>
               </li>
             )
           })}
@@ -208,7 +210,6 @@ export default function Services() {
                   </div>
                 </div>
               </div>
-
               <nav className="flex-1 px-2 py-3 text-sm">
                 <Link
                   to="/direcciones"
@@ -217,7 +218,6 @@ export default function Services() {
                 >
                   Direcciones
                 </Link>
-
                 <Link
                   to="/"
                   className="block px-3 py-2 rounded-lg hover:bg-base-light dark:hover:bg-base-dark transition"
@@ -225,7 +225,6 @@ export default function Services() {
                 >
                   Guías de mantención
                 </Link>
-
                 <Link
                   to="/"
                   className="block px-3 py-2 rounded-lg hover:bg-base-light dark:hover:bg-base-dark transition"
@@ -233,25 +232,22 @@ export default function Services() {
                 >
                   Guías de servicio
                 </Link>
-
-                <button
+                <AnimatedButton
                   type="button"
                   onClick={handleSync}
                   className="mt-2 block w-full text-left px-3 py-2 rounded-lg border border-borderc-light bg-card-light text-tmain-light hover:bg-base-light active:scale-[0.98] transition dark:border-borderc-dark dark:bg-card-dark dark:text-tmain-dark dark:hover:bg-base-dark"
                 >
                   Sincronizar offline
-                </button>
+                </AnimatedButton>
               </nav>
-
               <div className="px-3 pb-3 pt-2 border-t border-borderc-light dark:border-borderc-dark">
-                <button
+                <AnimatedButton
                   type="button"
                   onClick={() => setIsDark((v) => !v)}
                   className="w-full mb-2 px-3 py-2 text-xs rounded-lg border border-borderc-light bg-card-light text-tmuted-light hover:bg-base-light active:scale-[0.98] transition dark:border-borderc-dark dark:bg-card-dark dark:text-tmuted-dark dark:hover:bg-base-dark"
                 >
                   {isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                </button>
-
+                </AnimatedButton>
                 <div className="flex items-center justify-between text-xs text-tmuted-light dark:text-tmuted-dark">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">
@@ -261,17 +257,16 @@ export default function Services() {
                       {user?.email || 'sin correo'}
                     </div>
                   </div>
-                  <button
+                  <AnimatedButton
                     type="button"
                     onClick={logout}
                     className="ml-3 px-3 py-1.5 rounded border border-borderc-light bg-card-light text-tmuted-light hover:bg-base-light text-xs active:scale-[0.98] transition dark:border-borderc-dark dark:bg-card-dark dark:text-tmuted-dark dark:hover:bg-base-dark"
                   >
                     Cerrar sesión
-                  </button>
+                  </AnimatedButton>
                 </div>
               </div>
             </div>
-
             {/* FONDO OSCURO */}
             <button
               type="button"

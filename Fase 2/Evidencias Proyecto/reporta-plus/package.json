@@ -9,5 +9,11 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck"
   },
-  "workspaces": ["apps/*", "packages/*"]
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "framer-motion": "^12.23.24"
+  }
 }
