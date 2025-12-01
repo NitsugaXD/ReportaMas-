@@ -16,26 +16,16 @@ import { QueryServiceDto } from './dto/query-service.dto'
 import { User } from '../common/decorators/user.decorator'
 import { FileInterceptor } from '@nestjs/platform-express'
 import multer from 'multer'
-import { MailService } from 'src/mail/mail.service'
+// import { MailService } from 'src/mail/mail.service' // Quita esto, ya no se necesita aquí
 
 @Controller('services')
 export class ServicesController {
-  constructor(private readonly svc: ServicesService,
-    private readonly mailService: MailService
-  ) {}
+  constructor(private readonly svc: ServicesService) {}
 
   @Post()
   async create(@Body() dto: CreateServiceDto, @User() user: any) {
-    const service = await this.svc.create(dto, user);
-    // Enviar correo de notificación al crear el servicio
-    if (dto.clientEmail) {
-      await this.mailService.sendServiceReport({
-        to: [dto.clientEmail],
-        subject: 'Nuevo Servicio Creado',
-        html: `<b>Estimado ${dto.clientName|| ''}, tu servicio ha sido creado exitosamente.</b>`,
-      });
-    }
-    return service;
+    // Ya NO envía el mail aquí (lo hace el service)
+    return await this.svc.create(dto, user);
   }
 
   @Get()

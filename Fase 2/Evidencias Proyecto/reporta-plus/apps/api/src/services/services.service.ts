@@ -9,6 +9,15 @@ import { CreateServiceDto, UpdateServiceDto } from './dto/create-service.dto'
 import { StorageService } from '../storage/storage.service'
 import { MailService } from '../mail/mail.service'
 import { ServiceStatus } from '@prisma/client'
+import { PdfService } from '../pdf/pdf.service'
+
+// Cambiado: ahora permite contentType para Nodemailer
+type Attachment = {
+  filename: string
+  content?: Buffer | string
+  path?: string
+  contentType?: string
+}
 
 @Injectable()
 export class ServicesService {
@@ -16,6 +25,7 @@ export class ServicesService {
     private prisma: PrismaService,
     private storage: StorageService,
     private mail: MailService,
+    private pdfService: PdfService
   ) {}
 
   // ---- Crear servicio con find-or-create
@@ -25,14 +35,32 @@ export class ServicesService {
     if (!techId) throw new BadRequestException('techId requerido')
 
     // 2) Resolver CLIENTE (obligatorio por schema)
-    let clientId: string | undefined = dto.clientId
+    let clientId: string | undefined = dto.clientId;
     if (!clientId && dto.clientName) {
       const existing = await this.prisma.client.findFirst({
         where: { name: { equals: dto.clientName, mode: 'insensitive' } },
-      })
-      clientId = existing
-        ? existing.id
-        : (await this.prisma.client.create({ data: { name: dto.clientName } })).id
+      });
+      if (existing) {
+        clientId = existing.id;
+        // Si el cliente existe pero no tiene email, y dto.clientEmail viene, lo actualizamos
+        if (dto.clientEmail && !existing.email) {
+          await this.prisma.client.update({
+            where: { id: clientId },
+            data: { email: dto.clientEmail }
+          });
+        }
+      } else {
+        // Si el cliente es nuevo, lo creamos con email y teléfono si se proporciona
+        clientId = (
+          await this.prisma.client.create({
+            data: {
+              name: dto.clientName,
+              email: dto.clientEmail ?? null,
+              phone: dto.clientPhone ?? null,
+            },
+          })
+        ).id;
+      }
     }
     if (!clientId) {
       throw new BadRequestException('clientId o clientName requerido')
@@ -66,7 +94,7 @@ export class ServicesService {
     }
 
     // 5) Crear servicio conectando relaciones (client obligatorio, site opcional)
-    return this.prisma.service.create({
+    const service = await this.prisma.service.create({
       data: {
         serviceUid: dto.serviceUid,
         type: dto.type,
@@ -78,8 +106,62 @@ export class ServicesService {
         ...(siteId ? { site: { connect: { id: siteId } } } : {}),
       },
       include: { client: true, site: true, tech: true, files: true },
-    })
+    });
+
+    // ========== DEBUG PDF ==========
+    const datosPdf = {
+      nombreCliente: service.client?.name ?? '',
+      sitio: service.site?.name ?? '',
+      correo: service.client?.email ?? '',
+      telefono: service.clientPhone ?? '',
+      tecnico: service.tech?.name ?? '',
+      detalles: service.notes ?? '',
+      fotos: [],
+      firma: '',
+    };
+
+    let pdfBuffer: Buffer | undefined;
+    try {
+      pdfBuffer = await this.pdfService.generarPDFServiceDetail(datosPdf);
+
+      // Log tamaño
+      console.log('Tamaño del PDF generado:', pdfBuffer?.length);
+
+      // Escribe como debug
+      require('fs').writeFileSync('debug-pdf.pdf', pdfBuffer);
+
+      if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 1000) {
+        throw new Error('PDF vacío o corrupto, revisa debug-pdf.pdf');
+      }
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      throw new BadRequestException('No se pudo generar el PDF del servicio');
+    }
+
+    const recipient = service.client?.email;
+    if (recipient) {
+      const attachments: Attachment[] = [
+        {
+          filename: `servicio_${service.serviceUid}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }
+      ];
+      // Debug log attachments:
+      console.log('[DEBUG EMAIL ATTACHMENTS]', JSON.stringify(attachments, null, 2));
+
+      await this.mail.sendServiceReport({
+        to: [recipient],
+        subject: 'Resumen de tu servicio registrado',
+        html: `<b>Estimado ${service.client?.name || ''}, tu servicio ha sido registrado correctamente.</b>`,
+        attachments,
+      });
+    }
+    // ==========  FIN DEBUG PDF ==========
+
+    return service;
   }
+
   // ---- Eliminar Servicios
   async remove(id: string, user: { userId: string; role: string }) {
     const service = await this.prisma.service.findUnique({ where: { id } });
@@ -166,7 +248,7 @@ export class ServicesService {
         ...(dto.type ? { type: dto.type } : {}),
         ...(dto.notes ? { notes: dto.notes } : {}),
         ...(dto.status ? { status: dto.status as any } : {}),
-        ...(dto.clientPhone ? { clientPhone: dto.clientPhone } : {}), // ⬅️ AHORA SE ACTUALIZA EL TELÉFONO
+        ...(dto.clientPhone ? { clientPhone: dto.clientPhone } : {}),
         version: { increment: 1 },
       },
     })
@@ -220,9 +302,31 @@ export class ServicesService {
     const pdf = (updated.files as any[]).find(f => f.kind === 'PDF')
     const xlsx = (updated.files as any[]).find(f => f.kind === 'XLSX')
 
-    const attachments: { filename: string; path: string }[] = []
+    // ====== INTEGRACIÓN PDF SERVICEDETAIL ======
+    const datosPdf = {
+      nombreCliente: updated.client?.name ?? '',
+      sitio: updated.site?.name ?? '',
+      correo: updated.client?.email ?? '',
+      telefono: updated.clientPhone ?? '',
+      tecnico: updated.tech?.name ?? '',
+      detalles: updated.notes ?? '',
+      fotos: (updated.files || []).filter(f => f.kind === 'PHOTO').map(f => f.url),
+      firma: (updated.files || []).find(f => f.kind === 'SIGNATURE')?.url ?? ''
+    }
+
+    const pdfBuffer = await this.pdfService.generarPDFServiceDetail(datosPdf)
+
+    const attachments: Attachment[] = [
+      {
+        filename: `servicio_${updated.serviceUid}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }
+    ]
     if (pdf) attachments.push({ filename: 'informe.pdf', path: pdf.url })
     if (xlsx) attachments.push({ filename: 'informe.xlsx', path: xlsx.url })
+
+    console.log('[DEBUG EMAIL ATTACHMENTS]', JSON.stringify(attachments, null, 2))
 
     const subject = `Informe servicio ${updated.serviceUid}`
     const html = `

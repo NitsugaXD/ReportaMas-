@@ -329,6 +329,21 @@ export default function ServiceNew() {
             />
           </div>
 
+          {/* Detalles / Notas del Servicio */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Detalles / Observaciones
+            </label>
+            <textarea
+              name="notes"
+              value={form.notes}
+              onChange={handleChange}
+              placeholder="Describe brevemente el trabajo realizado, observaciones, etc."
+              rows={3}
+              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
+            />
+          </div>
+
           {/* Tipo de servicio */}
           <div>
             <label className="block text-sm font-semibold mb-1">

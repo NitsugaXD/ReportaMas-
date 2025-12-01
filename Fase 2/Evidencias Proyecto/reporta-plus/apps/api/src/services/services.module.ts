@@ -4,9 +4,10 @@ import { ServicesController } from './services.controller'
 import { PrismaModule } from '../prisma/prisma.module'
 import { StorageModule } from '../storage/storage.module'
 import { MailModule } from '../mail/mail.module'
+import { PdfModule } from '../pdf/pdf.module'
 
 @Module({
-  imports: [PrismaModule, StorageModule, MailModule],
+  imports: [PrismaModule, StorageModule, MailModule, PdfModule],
   providers: [ServicesService],
   controllers: [ServicesController],
 })

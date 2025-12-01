@@ -5,7 +5,11 @@ interface SendServiceReportParams {
   to: string[]
   subject: string
   html: string
-  attachments?: { filename: string; path: string }[]
+  attachments?: Array<{
+    filename: string
+    path?: string
+    content?: Buffer | string
+  }>
 }
 
 @Injectable()
@@ -33,7 +37,7 @@ export class MailService {
       this.logger.warn('sendServiceReport llamado sin destinatarios')
       return
     }
-
+    console.log('[DEBUG EMAIL ATTACHMENTS]', JSON.stringify(attachments, null, 2));
     try {
       await this.transporter.sendMail({
         from: process.env.MAIL_FROM ?? process.env.SMTP_USER,
