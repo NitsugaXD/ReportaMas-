@@ -48,4 +48,26 @@ export class UpdateServiceDto {
   @IsString({ each: true })
   @IsOptional()
   clientPhones?: string[]
+
+  @IsOptional()
+  clientId?: string
+
+  @IsOptional()
+  @IsString()
+  clientName?: string
+
+  @IsOptional()
+  @IsEmail()
+  clientEmail?: string
+
+  @IsOptional()
+  siteId?: string
+
+  @IsOptional()
+  @IsString()
+  siteName?: string
+
+  @IsOptional()
+  @IsString()
+  siteAddress?: string
 }

@@ -6,8 +6,8 @@
     "deleteOutDir": true,
     "assets": [
       {
-        "include": "src/pdf/templates/*.html",
-        "outDir": "src/pdf/templates/"
+        "include": "**/*.html",
+        "watchAssets": true
       }
     ]
   }

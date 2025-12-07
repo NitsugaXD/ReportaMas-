@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ulid } from 'ulid'
 import SignatureCanvas from 'react-signature-canvas'
 import api from '../api/client'
-import { db } from '../db/dexie'
 import { useAuth } from '../stores/auth'
+import AnimatedButton from '../components/AnimatedButton'
+import { AnimatedInput, AnimatedTextarea, AnimatedSelect } from '../components/AnimatedInput'
 
 type FileKind = 'PHOTO' | 'SIGNATURE' | 'PDF' | 'XLSX'
 
@@ -24,12 +25,38 @@ type FileAttachment = { file: File; kind: FileKind }
 type PendingFiles = {
   photos: File[]
   attachments: FileAttachment[]
-  signature?: File | null
+  signature: File | null
+}
+
+// Helper para convertir el dibujo a archivo
+function dataURLToFile(dataUrl: string, filename: string): File {
+  const arr = dataUrl.split(',')
+  const mimeMatch = arr[0].match(/:(.*?);/)
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+  const bstr = atob(arr[1])
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new File([u8arr], filename, { type: mime })
+}
+
+// simple debounce
+function debounce(fn: () => void, wait = 150) {
+  let t: number | undefined
+  return () => {
+    if (t) window.clearTimeout(t)
+    // @ts-ignore
+    t = window.setTimeout(fn, wait)
+  }
 }
 
 export default function ServiceNew() {
   const nav = useNavigate()
   const user = useAuth((s) => s.user)
+  const sigPadRef = useRef<any>(null)
+  const sigContainerRef = useRef<HTMLDivElement | null>(null)
 
   const [form, setForm] = useState<FormState>({
     clientName: '',
@@ -47,495 +74,361 @@ export default function ServiceNew() {
     signature: null,
   })
 
-  const [err, setErr] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [signErr, setSignErr] = useState('')
-
-  const sigRef = useRef<SignatureCanvas | null>(null)
-  const galleryInputRef = useRef<HTMLInputElement | null>(null)
-  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [loadingText, setLoadingText] = useState('')
   const [showPhotoSource, setShowPhotoSource] = useState(false)
 
-  function handleChange(
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
-  ) {
-    const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
+  // file inputs refs
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // handlers
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function handlePhotosChange(e: ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files) return
-    const list = Array.from(e.target.files)
-    setFiles((prev) => ({
-      ...prev,
-      photos: [...prev.photos, ...list],
-    }))
-  }
-
-  function handleAttachmentsChange(e: ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files) return
-    const list = Array.from(e.target.files)
-
-    const mapped: FileAttachment[] = list.map((file) => {
-      const name = file.name.toLowerCase()
-      let kind: FileKind = 'PHOTO'
-      if (name.endsWith('.pdf')) kind = 'PDF'
-      if (name.endsWith('.xlsx') || name.endsWith('.xls')) kind = 'XLSX'
-      return { file, kind }
-    })
-
-    setFiles((prev) => ({
-      ...prev,
-      attachments: [...prev.attachments, ...mapped],
-    }))
-  }
-
-  function handleClearSignature() {
-    sigRef.current?.clear()
-    setFiles((prev) => ({ ...prev, signature: null }))
-    setSignErr('')
-  }
-
-  function handleCaptureSignature() {
-    const sig = sigRef.current
-    if (!sig || sig.isEmpty()) {
-      setSignErr('Primero dibuja la firma.')
-      return
+  const handlePhotosChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newPhotos = Array.from(e.target.files)
+      setFiles((prev) => ({ ...prev, photos: [...prev.photos, ...newPhotos] }))
     }
-    const dataUrl = sig.toDataURL('image/png')
-    const file = dataURLToFile(dataUrl, `firma-${Date.now()}.png`)
-    setFiles((prev) => ({ ...prev, signature: file }))
-    setSignErr('')
+    setShowPhotoSource(false)
   }
 
-  async function createOnline(dto: any, pending: PendingFiles) {
-    const { data: svc } = await api.post('/services', dto)
+  const removePhoto = (idx: number) => {
+    setFiles((prev) => ({ ...prev, photos: prev.photos.filter((_, i) => i !== idx) }))
+  }
 
-    const uploads: Promise<any>[] = []
-
-    for (const photo of pending.photos) {
-      const fd = new FormData()
-      fd.append('file', photo)
-      uploads.push(
-        api.post(`/services/${svc.id}/files?kind=PHOTO`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }),
-      )
+  const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0]
+      let kind: FileKind = 'PDF'
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) kind = 'XLSX'
+      setFiles((prev) => ({ ...prev, attachments: [...prev.attachments, { file, kind }] }))
     }
+  }
 
-    for (const att of pending.attachments) {
-      const fd = new FormData()
-      fd.append('file', att.file)
-      uploads.push(
-        api.post(`/services/${svc.id}/files?kind=${att.kind}`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }),
-      )
-    }
+  const removeAttachment = (idx: number) => {
+    setFiles((prev) => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))
+  }
 
-    if (pending.signature) {
-      const fd = new FormData()
-      fd.append('file', pending.signature)
-      uploads.push(
-        api.post(`/services/${svc.id}/files?kind=SIGNATURE`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }),
-      )
+  // Resize / DPR fix for signature canvas
+  useEffect(() => {
+    const resizeCanvas = () => {
+      const sc = sigPadRef.current
+      const container = sigContainerRef.current
+      if (!sc || !container) return
+      const canvas: HTMLCanvasElement = sc.getCanvas()
+      if (!canvas) return
+
+      // Preserve drawing
+      let dataUrl: string | null = null
+      try {
+        if (typeof sc.toDataURL === 'function' && !sc.isEmpty?.()) {
+          dataUrl = sc.toDataURL()
+        }
+      } catch (err) {
+        dataUrl = null
+      }
+
+      const ratio = Math.max(window.devicePixelRatio || 1, 1)
+      const w = container.clientWidth
+      const h = container.clientHeight
+
+      canvas.width = Math.round(w * ratio)
+      canvas.height = Math.round(h * ratio)
+      canvas.style.width = `${w}px`
+      canvas.style.height = `${h}px`
+
+      const ctx = canvas.getContext('2d')
+      if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+
+      if (dataUrl) {
+        try {
+          sc.fromDataURL(dataUrl)
+        } catch (err) {
+          // ignore
+        }
+      } else {
+        sc.clear()
+      }
     }
 
-    if (uploads.length) {
-      await Promise.all(uploads)
+    resizeCanvas()
+    const onResize = debounce(resizeCanvas, 120)
+    window.addEventListener('resize', onResize)
+    const id = window.setTimeout(resizeCanvas, 200)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('resize', onResize)
     }
+  }, [])
 
-    return svc
-  }
-
-  async function createOffline(dto: any, pending: PendingFiles) {
-    await db.outbox.add({
-      kind: 'CREATE_SERVICE',
-      payload: { dto, files: pending },
-      createdAt: Date.now(),
-    })
-  }
-
-  async function onSubmit(e: FormEvent) {
+  // signature logic
+  const handleSaveSignature = (e: React.MouseEvent) => {
     e.preventDefault()
-    setErr('')
-    setSignErr('')
-    setLoading(true)
+    const sc: any = sigPadRef.current
+    const isEmpty = sc && typeof sc.isEmpty === 'function' ? sc.isEmpty() : true
+    if (sc && !isEmpty) {
+      let canvas: HTMLCanvasElement
+      if (typeof sc.getTrimmedCanvas === 'function') {
+        try {
+          canvas = sc.getTrimmedCanvas()
+        } catch {
+          canvas = sc.getCanvas()
+        }
+      } else {
+        canvas = sc.getCanvas()
+      }
+      const dataUrl = canvas.toDataURL('image/png')
+      const file = dataURLToFile(dataUrl, 'signature.png')
+      setFiles(prev => ({ ...prev, signature: file }))
+    } else {
+      alert('Primero debes firmar en el recuadro.')
+    }
+  }
+
+  const handleClearSignature = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setFiles(prev => ({ ...prev, signature: null }))
+    setTimeout(() => sigPadRef.current?.clear(), 50)
+  }
+
+  // submit
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!form.clientName) return alert('Falta el nombre del cliente')
+
+    let finalSignature = files.signature
+    const sc: any = sigPadRef.current
+    const scIsEmpty = sc && typeof sc.isEmpty === 'function' ? sc.isEmpty() : true
+    if (!finalSignature && sc && !scIsEmpty) {
+      const canvas = typeof sc.getTrimmedCanvas === 'function' ? sc.getTrimmedCanvas() : sc.getCanvas()
+      const dataUrl = canvas.toDataURL('image/png')
+      finalSignature = dataURLToFile(dataUrl, 'signature.png')
+    }
+
+    if (!finalSignature) {
+      if (!confirm('No hay firma guardada. ¿Enviar sin firma?')) return
+    }
 
     try {
-      if (!user?.id) {
-        throw new Error('techId requerido')
-      }
+      setSaving(true)
+      setLoadingText('Creando servicio...')
 
       const serviceUid = ulid()
-      const dto = {
+
+      // A. CREAR
+      const { data: newService } = await api.post('/services', {
+        ...form,
         serviceUid,
-        clientName: form.clientName,
-        clientEmail: form.clientEmail || undefined,
-        clientPhone: form.clientPhone,
-        siteName: form.siteName,
-        siteAddress: form.siteAddress,
-        type: form.type,
-        notes: form.notes,
+        techId: user?.id,
         date: new Date().toISOString(),
-        techId: user.id,
+      })
+      const serviceId = newService.id
+
+      // B. SUBIR FOTOS
+      if (files.photos.length > 0) {
+        setLoadingText(`Subiendo ${files.photos.length} fotos...`)
+        await Promise.all(files.photos.map(file => {
+          const fd = new FormData()
+          fd.append('file', file)
+          return api.post(`/services/${serviceId}/files?kind=PHOTO`, fd)
+        }))
       }
 
-      const pending: PendingFiles = {
-        photos: files.photos,
-        attachments: files.attachments,
-        signature: files.signature || undefined,
+      // C. SUBIR ADJUNTOS
+      if (files.attachments.length > 0) {
+        setLoadingText('Subiendo documentos...')
+        await Promise.all(files.attachments.map(att => {
+          const fd = new FormData()
+          fd.append('file', att.file)
+          return api.post(`/services/${serviceId}/files?kind=${att.kind}`, fd)
+        }))
       }
 
-      if (navigator.onLine) {
-        const svc = await createOnline(dto, pending)
-        nav(`/s/${svc.id}`)
-      } else {
-        await createOffline(dto, pending)
-        alert(
-          'Sin conexión: el servicio y los archivos se guardarán en el dispositivo y se enviarán automáticamente al recuperar la red.',
-        )
-        nav('/')
+      // D. SUBIR FIRMA
+      if (finalSignature) {
+        setLoadingText('Guardando firma...')
+        const fd = new FormData()
+        fd.append('file', finalSignature)
+        await api.post(`/services/${serviceId}/files?kind=SIGNATURE`, fd)
       }
-    } catch (e: any) {
-      setErr(
-        e?.response?.data?.message ||
-          e?.message ||
-          'Error inesperado al crear el servicio',
-      )
+
+      // E. GENERAR Y ENVIAR PDF
+      setLoadingText('Generando reporte...')
+      await api.patch(`/services/${serviceId}/sign-and-send`, {
+        notes: form.notes
+      })
+
+      alert('¡Listo! Servicio enviado con éxito.')
+      nav('/')
+    } catch (error: any) {
+      console.error(error)
+      alert('Error: ' + (error.response?.data?.message || error.message))
     } finally {
-      setLoading(false)
+      setSaving(false)
+      setLoadingText('')
     }
-  }
-
-  function openPhotoSourceModal() {
-    setShowPhotoSource(true)
-  }
-
-  function chooseGallery() {
-    setShowPhotoSource(false)
-    galleryInputRef.current?.click()
-  }
-
-  function chooseCamera() {
-    setShowPhotoSource(false)
-    cameraInputRef.current?.click()
-  }
-
-  function handleCancel() {
-    nav('/')
   }
 
   return (
-    <div className="min-h-screen px-1 py-6 bg-base-light dark:bg-base-dark text-tmain-light dark:text-tmain-dark transition-colors flex flex-col items-center relative overflow-hidden">
-      {/* Fondos decorativos */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 -right-24 w-64 h-64 rounded-full bg-brand-soft blur-3xl opacity-70 dark:bg-brand-darkSoft" />
-        <div className="absolute -bottom-32 -left-16 w-72 h-72 rounded-full bg-accent-light blur-3xl opacity-60 dark:bg-accent-dark" />
-      </div>
-      <div className="z-10 w-full max-w-md sm:max-w-lg flex flex-col gap-6">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">Crear Nuevo Servicio</h1>
+    <div className="relative min-h-screen">
+      {/* decorative background similar to login */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(600px 300px at 10% 15%, rgba(255,140,60,0.12), transparent), radial-gradient(500px 200px at 90% 85%, rgba(124,58,237,0.06), transparent), linear-gradient(180deg, rgba(10,11,13,0.6), rgba(6,7,8,0.85))',
+          mixBlendMode: 'screen',
+        }}
+      />
+
+      <div className="p-4 pb-32 max-w-xl mx-auto animate-in fade-in duration-500 relative z-10">
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-tmain-light dark:text-tmain-dark">Nuevo Servicio</h1>
           <button
             type="button"
-            onClick={handleCancel}
-            className="px-3 py-1.5 rounded-full text-brand-primary bg-transparent border-2 border-brand-primary hover:bg-brand-soft dark:hover:bg-brand-darkSoft font-semibold shadow-sm transition text-sm"
+            onClick={() => nav('/')}
+            className="text-sm text-red-500 font-medium px-3 py-1 bg-red-50 rounded-full hover:bg-red-100 transition dark:bg-red-900/20"
           >
             Cancelar
           </button>
         </div>
 
-        {err && (
-          <div className="mb-2 text-sm border border-red-300 rounded px-3 py-2 bg-red-50 text-red-700">
-            {err}
-          </div>
-        )}
-
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded-xl p-4 shadow-sm border bg-card-light border-borderc-light dark:bg-card-dark dark:border-borderc-dark"
-        >
-          {/* Nombre Cliente */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Nombre Cliente
-            </label>
-            <input
-              name="clientName"
-              value={form.clientName}
-              onChange={handleChange}
-              placeholder="Ej: Juan Pérez"
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
+        <form onSubmit={handleSubmit} className="space-y-6 relative">
+          {/* BLOQUE CLIENTE */}
+          <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-borderc-light dark:border-borderc-dark space-y-4">
+            <h2 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Información del Cliente</h2>
+            <AnimatedInput name="clientName" value={form.clientName} onChange={handleChange} placeholder="Nombre Cliente *" />
+            <AnimatedInput name="clientEmail" value={form.clientEmail} onChange={handleChange} placeholder="Correo (para reporte)" type="email" />
+            <AnimatedInput name="clientPhone" value={form.clientPhone} onChange={handleChange} placeholder="Teléfono" type="tel" />
           </div>
 
-          {/* Correo Electronico */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Correo Electrónico del Cliente
-            </label>
-            <input
-              name="clientEmail"
-              type="email"
-              value={form.clientEmail}
-              onChange={handleChange}
-              placeholder="Ej: cliente@email.com"
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
-          </div>
-
-          {/* Telefono/Celular */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Teléfono/Celular
-            </label>
-            <input
-              name="clientPhone"
-              type="tel"
-              value={form.clientPhone}
-              onChange={handleChange}
-              placeholder="Ej: +56 9 1234 5678"
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
-          </div>
-
-          {/* Nombre del edificio/casa */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Nombre del edificio/casa
-            </label>
-            <input
-              name="siteName"
-              value={form.siteName}
-              onChange={handleChange}
-              placeholder="Ej: Parque los Nogales"
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
-          </div>
-
-          {/* Dirección Completa */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Dirección Completa
-            </label>
-            <input
-              name="siteAddress"
-              value={form.siteAddress}
-              onChange={handleChange}
-              placeholder="Ej: Los Álamos #1234, Colina"
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
-          </div>
-
-          {/* Detalles / Notas del Servicio */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Detalles / Observaciones
-            </label>
-            <textarea
-              name="notes"
-              value={form.notes}
-              onChange={handleChange}
-              placeholder="Describe brevemente el trabajo realizado, observaciones, etc."
-              rows={3}
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light placeholder:text-tmuted-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark dark:placeholder:text-tmuted-dark"
-            />
-          </div>
-
-          {/* Tipo de servicio */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Tipo de servicio
-            </label>
-            <select
-              name="type"
-              value={form.type}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 text-sm bg-card-light border-borderc-light text-tmain-light focus:outline-none focus:ring-2 focus:ring-brand-primary transition dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark"
-            >
-              <option value="Servicio técnico">Servicio Técnico</option>
-              <option value="Mantención">Mantención</option>
-              <option value="Servicio informático">Servicio Informático</option>
-            </select>
-          </div>
-
-          {/* Fotografías */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Fotografías
-            </label>
-            <button
-              type="button"
-              onClick={openPhotoSourceModal}
-              className="px-3 py-2 text-sm rounded font-medium text-white bg-brand-primary hover:bg-brand-hover active:scale-[0.98] hover:shadow-md transition"
-            >
-              Añadir foto
-            </button>
-            {files.photos.length > 0 && (
-              <ul className="mt-2 text-xs text-tmuted-light dark:text-tmuted-dark list-disc list-inside">
-                {files.photos.map((f, i) => (
-                  <li key={i}>{f.name}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Adjuntar archivos */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Adjuntar archivos (PDF/Excel)
-            </label>
-            <input
-              type="file"
-              multiple
-              onChange={handleAttachmentsChange}
-              className="block text-sm file:mr-3 file:py-1 file:px-2 file:border file:border-borderc-light file:dark:border-borderc-dark file:rounded file:bg-brand-primary file:text-white hover:file:bg-brand-hover transition"
-            />
-            {files.attachments.length > 0 && (
-              <ul className="mt-2 text-xs text-tmuted-light dark:text-tmuted-dark list-disc list-inside">
-                {files.attachments.map((att, i) => (
-                  <li key={i}>
-                    {att.file.name} ({att.kind})
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Firma de cliente */}
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Firma de cliente
-            </label>
-            <div className="border border-borderc-light dark:border-borderc-dark rounded bg-card-light dark:bg-card-dark w-full h-40 overflow-hidden">
-              <SignatureCanvas
-                ref={sigRef}
-                penColor="black"
-                backgroundColor={
-                  document.documentElement.classList.contains('dark')
-                    ? "#0B0F18"
-                    : "#FFFFFF"
-                }
-                canvasProps={{
-                  className: 'signature-canvas w-full h-40 rounded outline-none',
-                  style: {
-                    width: "100%",
-                    height: "100%",
-                    borderRadius: "0.5rem",
-                  },
-                }}
-              />
+          {/* DETALLES */}
+          <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-borderc-light dark:border-borderc-dark space-y-4">
+            <h2 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Detalles del Trabajo</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <AnimatedInput name="siteName" value={form.siteName} onChange={handleChange} placeholder="Nombre Sitio" />
+              <AnimatedSelect name="type" value={form.type} onChange={handleChange}>
+                <option>Servicio informático</option>
+                <option>Mantención</option>
+                <option>Reparación</option>
+                <option>Instalación</option>
+                <option>Visita Técnica</option>
+              </AnimatedSelect>
             </div>
-            <div className="flex gap-2 mt-2">
+            <AnimatedInput name="siteAddress" value={form.siteAddress} onChange={handleChange} placeholder="Dirección" />
+            <AnimatedTextarea name="notes" value={form.notes} onChange={handleChange} placeholder="Observaciones..." rows={3} />
+          </div>
+
+          {/* FOTOS */}
+          <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-borderc-light dark:border-borderc-dark">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Evidencias ({files.photos.length})</h2>
+              <button type="button" onClick={() => setShowPhotoSource(true)} className="text-xs bg-brand-primary text-white px-3 py-1 rounded-full">+ Agregar</button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide min-h-[80px]">
+              {files.photos.length === 0 && <p className="text-sm text-gray-400 italic">No hay fotos</p>}
+              {files.photos.map((file, idx) => (
+                <div key={idx} className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
+                  <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-xs">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ADJUNTOS */}
+          <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-borderc-light dark:border-borderc-dark">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Adjuntos ({files.attachments.length})</h2>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs border border-brand-primary text-brand-primary px-3 py-1 rounded-full">+ PDF/Excel</button>
+            </div>
+            <div className="space-y-2">
+              {files.attachments.map((att, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded text-sm dark:bg-gray-800">
+                  <span className="truncate max-w-[200px]">{att.file.name}</span>
+                  <button type="button" onClick={() => removeAttachment(idx)} className="text-red-500 text-xs">Eliminar</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* FIRMA */}
+          <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-borderc-light dark:border-borderc-dark">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Firma del Cliente</h2>
               <button
                 type="button"
                 onClick={handleClearSignature}
-                className="px-3 py-1 text-xs rounded border border-borderc-light dark:border-borderc-dark bg-card-light dark:bg-card-dark text-tmain-light dark:text-tmain-dark hover:bg-base-light dark:hover:bg-base-dark transition"
+                className="text-sm text-red-500 font-medium px-3 py-1 bg-red-50 rounded-full hover:bg-red-100 transition dark:bg-red-900/20"
               >
-                Limpiar
-              </button>
-              <button
-                type="button"
-                onClick={handleCaptureSignature}
-                className="px-3 py-1 text-xs rounded border border-brand-primary bg-brand-primary text-white hover:bg-brand-hover transition"
-              >
-                Guardar firma
+                {files.signature ? 'Firmar de nuevo' : 'Limpiar'}
               </button>
             </div>
-            {files.signature && (
-              <p className="mt-1 text-xs text-emerald-500">
-                Firma capturada ({files.signature.name})
-              </p>
-            )}
-            {signErr && (
-              <p className="mt-1 text-xs text-red-500">{signErr}</p>
-            )}
-            <p className="mt-1 text-[11px] text-tmuted-light dark:text-tmuted-dark">
-              La firma se sube como archivo de tipo SIGNATURE asociado al servicio.
-            </p>
+
+            <div
+              ref={sigContainerRef}
+              className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 touch-none relative h-40 flex items-center justify-center overflow-hidden"
+            >
+              {files.signature ? (
+                <img src={URL.createObjectURL(files.signature)} alt="Firma guardada" className="h-full object-contain p-2" />
+              ) : (
+                <SignatureCanvas
+                  ref={sigPadRef}
+                  penColor="black"
+                  canvasProps={{ className: 'w-full h-full bg-transparent', style: { touchAction: 'none' } }}
+                />
+              )}
+            </div>
+
+            <div className="mt-3">
+              {files.signature ? (
+                <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-center dark:bg-emerald-900/20 dark:border-emerald-800">
+                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">✅ Firma guardada correctamente</p>
+                </div>
+              ) : (
+                <AnimatedButton
+                  type="button"
+                  onClick={handleSaveSignature}
+                  className="w-full py-3 text-base font-semibold rounded-full shadow-lg"
+                >
+                  Guardar Firma
+                </AnimatedButton>
+              )}
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-brand-primary to-accent-light dark:from-brand-darkPrimary dark:to-accent-dark hover:brightness-110 active:scale-[0.98] transition disabled:opacity-70"
-          >
-            {loading ? 'Creando...' : 'Crear Servicio'}
-          </button>
+          {/* BOTÓN FINAL */}
+          <div className="pt-2 sticky bottom-0 bg-base-light dark:bg-base-dark pb-4 z-10 -mx-1 px-1">
+            <AnimatedButton
+              type="submit"
+              disabled={saving}
+              className="w-full py-4 text-lg font-extrabold rounded-xl shadow-2xl transform transition"
+            >
+              {saving ? loadingText || 'Procesando...' : 'Finalizar y Enviar'}
+            </AnimatedButton>
+          </div>
         </form>
-        <p className="text-xs mt-2 text-tmuted-light dark:text-tmuted-dark">
-          Si no hay conexión, el servicio y los archivos se guardarán en el
-          dispositivo y se enviarán automáticamente al recuperar la red.
-        </p>
-      </div>
 
-      {/* MODAL SELECCIÓN FOTO */}
-      {showPhotoSource && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
-          <div className="w-72 rounded-xl p-4 shadow-lg border bg-card-light border-borderc-light text-tmain-light space-y-3 dark:bg-card-dark dark:border-borderc-dark dark:text-tmain-dark">
-            <h2 className="text-sm font-semibold text-center">Agregar foto</h2>
-            <p className="text-xs text-tmuted-light dark:text-tmuted-dark">
-              Elige cómo deseas cargar la imagen.
-            </p>
-            <button
-              type="button"
-              onClick={chooseGallery}
-              className="w-full px-3 py-2 text-sm rounded border border-borderc-light bg-card-light hover:bg-base-light transition dark:border-borderc-dark dark:bg-card-dark dark:hover:bg-base-dark"
-            >
-              Elegir desde galería
-            </button>
-            <button
-              type="button"
-              onClick={chooseCamera}
-              className="w-full px-3 py-2 text-sm rounded font-medium text-white bg-brand-primary hover:bg-brand-hover active:scale-[0.98] transition"
-            >
-              Tomar foto con cámara
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPhotoSource(false)}
-              className="w-full px-3 py-2 text-xs rounded border border-borderc-light bg-card-light hover:bg-base-light mt-1 transition dark:border-borderc-dark dark:bg-card-dark dark:hover:bg-base-dark text-tmuted-light dark:text-tmuted-dark"
-            >
-              Cerrar
-            </button>
+        {/* Modales */}
+        {showPhotoSource && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4" onClick={() => setShowPhotoSource(false)}>
+            <div className="bg-white dark:bg-card-dark w-full max-w-sm rounded-2xl p-4 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+              <button type="button" onClick={() => galleryInputRef.current?.click()} className="p-3 bg-gray-100 rounded-xl font-medium dark:bg-gray-700">Galería</button>
+              <button type="button" onClick={() => cameraInputRef.current?.click()} className="p-3 bg-brand-primary text-white rounded-xl font-medium">Cámara</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* INPUTS OCULTOS GALERÍA / CÁMARA */}
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={handlePhotosChange}
-      />
-
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        capture="environment"
-        className="hidden"
-        onChange={handlePhotosChange}
-      />
+        <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotosChange} />
+        <input ref={cameraInputRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handlePhotosChange} />
+        <input ref={fileInputRef} type="file" accept=".pdf, .xlsx, .xls" className="hidden" onChange={handleAttachmentChange} />
+      </div>
     </div>
   )
-}
-
-function dataURLToFile(dataUrl: string, filename: string): File {
-  const arr = dataUrl.split(',')
-  const mimeMatch = arr[0].match(/:(.*?);/)
-  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
-  const bstr = atob(arr[1])
-  let n = bstr.length
-  const u8arr = new Uint8Array(n)
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n)
-  }
-  return new File([u8arr], filename, { type: mime })
 }
