@@ -248,7 +248,6 @@ export class ServicesService {
     })
   }
 
-  // STANDARD: findMany/getOne etc.
   async findMany(query: any, user: { userId: string; role: string }) {
     const { q, from, to, tech, client, status, page, pageSize } = query
     const where: any = {}
@@ -287,35 +286,26 @@ export class ServicesService {
     return s
   }
 
-  // UPDATED: handle client/site nested changes safely (fix Prisma unknown-field errors)
   async update(id: string, dto: UpdateServiceDto, user: any) {
-    // Fetch existing service with relations
     const service = await this.prisma.service.findUnique({
       where: { id },
       include: { client: true, site: true },
     })
     if (!service) throw new NotFoundException('Servicio no encontrado')
 
-    // We'll collect the update payload for the service (only fields that exist on Service model)
     const updateData: any = {}
 
     if (dto.type !== undefined) updateData.type = dto.type
     if (dto.notes !== undefined) updateData.notes = dto.notes
     if (dto.clientPhone !== undefined) updateData.clientPhone = dto.clientPhone
-    // date/status/version etc can be handled here as needed
-
-    // --- CLIENT handling ---
-    // If client fields provided, either update existing client or create & connect a new one
     if (dto.clientName || dto.clientEmail || dto.clientPhone) {
       if (service.client) {
-        // Update the existing client record directly
         const clientUpdate: any = {}
         if (dto.clientName) clientUpdate.name = dto.clientName
         if (dto.clientEmail) clientUpdate.email = dto.clientEmail
         if (dto.clientPhone) clientUpdate.phone = dto.clientPhone
         await this.prisma.client.update({ where: { id: service.client.id }, data: clientUpdate })
       } else {
-        // create a new client and connect
         const newClient = await this.prisma.client.create({
           data: {
             name: dto.clientName || 'Cliente',
@@ -327,8 +317,6 @@ export class ServicesService {
       }
     }
 
-    // --- SITE handling ---
-    // If site fields provided, update existing or create attached to client
     if (dto.siteName || dto.siteAddress) {
       if (service.site) {
         const siteUpdate: any = {}
@@ -336,13 +324,10 @@ export class ServicesService {
         if (dto.siteAddress) siteUpdate.address = dto.siteAddress
         await this.prisma.site.update({ where: { id: service.site.id }, data: siteUpdate })
       } else {
-        // Need a client to attach the site to: prefer existing client or one created above
         let clientIdToUse = service.client?.id
         if (!clientIdToUse) {
-          // maybe we just created one via updateData.client.connect
           if (updateData.client && updateData.client.connect) clientIdToUse = updateData.client.connect.id
           else {
-            // no client info present: create a placeholder client if minimal info exists
             const newClient = await this.prisma.client.create({
               data: {
                 name: dto.clientName ?? 'Cliente',
@@ -365,11 +350,9 @@ export class ServicesService {
       }
     }
 
-    // If DTO explicitly contains clientId or siteId to connect, handle that
     if (dto.clientId) updateData.client = { connect: { id: dto.clientId } }
     if (dto.siteId) updateData.site = { connect: { id: dto.siteId } }
 
-    // Finally perform the service update
     return this.prisma.service.update({
       where: { id },
       data: updateData,

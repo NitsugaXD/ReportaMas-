@@ -76,6 +76,8 @@ enum ServiceStatus {
   SIGNED
   SENT
   DONE
+  SAVED_OFFLINE
+  PENDING_SEND
 }
 
 model ServiceFile {

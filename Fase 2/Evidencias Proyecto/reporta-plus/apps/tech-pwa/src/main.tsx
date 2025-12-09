@@ -9,6 +9,7 @@ import ServiceDetail from './pages/ServiceDetail'
 import ServiceEdit from './pages/ServiceEdit'
 import { useAuth } from './stores/auth'
 import { runSync } from './sync/sync'
+import { initOffline } from './sync/useOffline'
 import AppLayout from './components/AppLayout'
 
 function Guard({ children }:{children:React.ReactNode}) {
@@ -17,6 +18,8 @@ function Guard({ children }:{children:React.ReactNode}) {
   return <>{children}</>
 }
 
+// Init offline sync listeners
+initOffline()
 if (navigator.onLine) runSync()
 window.addEventListener('online', () => runSync())
 setInterval(() => {

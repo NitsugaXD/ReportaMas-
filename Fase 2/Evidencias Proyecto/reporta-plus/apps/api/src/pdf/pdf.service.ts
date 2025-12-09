@@ -11,24 +11,20 @@ export class PdfService {
   // Método helper para encontrar la plantilla donde sea que esté
   private getTemplatePath(templateName: string): string {
     const possiblePaths = [
-      // 1. Donde debería estar en producción (dist/src/pdf/templates)
       path.join(__dirname, 'templates', templateName),
-      // 2. Si la estructura se aplanó (dist/pdf/templates)
       path.join(__dirname, '..', 'templates', templateName),
-      // 3. Directo en el código fuente (para desarrollo local)
       path.join(process.cwd(), 'src', 'pdf', 'templates', templateName),
-      // 4. Intento desde la raíz de la app
       path.join(process.cwd(), 'apps', 'api', 'src', 'pdf', 'templates', templateName),
-    ];
+    ]
 
     for (const p of possiblePaths) {
       if (fs.existsSync(p)) {
-        this.logger.log(`Plantilla encontrada en: ${p}`);
-        return p;
+        this.logger.log(`Plantilla encontrada en: ${p}`)
+        return p
       }
     }
 
-    throw new Error(`No se encontró la plantilla ${templateName} en ninguna ruta esperada.`);
+    throw new Error(`No se encontró la plantilla ${templateName} en ninguna ruta esperada.`)
   }
 
   // Helper sencillo: cargar plantilla y reemplazar placeholders {{key}}
@@ -40,6 +36,38 @@ export class PdfService {
       html = html.split(`{{${k}}}`).join(v)
     }
     return html
+  }
+
+  // Si logoPath no es URL HTTP, intenta leer el fichero y devolver data URI
+  private async resolveLogoUrl(logoPathOrUrl?: string): Promise<string> {
+    if (!logoPathOrUrl) return ''
+    const trimmed = logoPathOrUrl.trim()
+    if (/^https?:\/\//i.test(trimmed)) return trimmed
+
+    const candidate = path.isAbsolute(trimmed) ? trimmed : path.join(process.cwd(), trimmed)
+    if (!fs.existsSync(candidate)) {
+      const alt = path.join(process.cwd(), 'apps', 'api', 'src', 'pdf', 'templates', trimmed)
+      if (fs.existsSync(alt)) {
+        const buf = await fsPromises.readFile(alt)
+        const mime = this.mimeFromFilename(alt)
+        return `data:${mime};base64,${buf.toString('base64')}`
+      }
+      this.logger.warn(`Logo no encontrado en disco: ${candidate} (dejando valor tal cual)`)
+      return trimmed 
+    }
+
+    const buffer = await fsPromises.readFile(candidate)
+    const mime = this.mimeFromFilename(candidate)
+    return `data:${mime};base64,${buffer.toString('base64')}`
+  }
+
+  private mimeFromFilename(filename: string) {
+    const ext = (path.extname(filename) || '').toLowerCase()
+    if (ext === '.png') return 'image/png'
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+    if (ext === '.svg') return 'image/svg+xml'
+    if (ext === '.webp') return 'image/webp'
+    return 'application/octet-stream'
   }
 
   // Generador de PDF para Service Detail (usa plantilla service-detail.html)
@@ -60,6 +88,8 @@ export class PdfService {
     const fotoHtml = (datos.fotos ?? []).map(f => `<img src="${f}" class="photo" />`).join('')
     const firmaHtml = datos.firma ? `<img src="${datos.firma}" />` : ''
 
+    const resolvedLogo = await this.resolveLogoUrl(datos.logoUrl || process.env.PDF_LOGO_URL || '')
+
     const replacements: Record<string, string> = {
       nombreCliente: datos.nombreCliente || '',
       sitio: datos.sitio || '',
@@ -72,7 +102,7 @@ export class PdfService {
       serviceUid: datos.serviceUid || '',
       fecha: datos.fecha || '',
       generatedAt: datos.generatedAt || new Date().toLocaleString(),
-      logoUrl: datos.logoUrl || process.env.PDF_LOGO_URL || '',
+      logoUrl: resolvedLogo || '',
     }
 
     const html = await this.renderTemplate('service-detail.html', replacements)
@@ -95,12 +125,8 @@ export class PdfService {
     return Buffer.from(pdfUint8)
   }
 
+  // Compatibilidad: alias si hace falta
   async generarPDF(datos: any): Promise<Buffer> {
-    try {
-      return await this.generarPDFServiceDetail(datos)
-    } catch (err) {
-      this.logger.error('Error en generarPDF alias: ' + (err as any)?.message)
-      throw err
-    }
+    return this.generarPDFServiceDetail(datos)
   }
 }

@@ -13,7 +13,8 @@
     .brand {
       display:flex; gap:12px; align-items:center;
     }
-    .brand img { height:48px; width:auto; }
+    .brand img { height:48px; width:auto; display:block; }
+    img[src=""], img:not([src]) { display: none; }
     .title { font-size: 20px; font-weight: 700; color:#0f172a; }
     .meta { text-align:right; font-size:12px; color:#475569; }
     .meta .uid { font-weight:700; color:#0f172a; display:block; }
@@ -51,10 +52,8 @@
       display:flex; justify-content:space-between; align-items:center; margin-top:18px; border-top:1px solid #eef2ff; padding-top:8px; font-size:11px; color:#6b7280;
     }
 
-    /* multi-page rules */
     .page-break { page-break-before: always; }
 
-    /* small screens in case template used for preview */
     @media (max-width:480px) {
       .photos-grid { grid-template-columns: repeat(2,1fr); }
       .meta { text-align:left; margin-top:8px; }
@@ -65,7 +64,7 @@
   <div class="pdf-container">
     <div class="header">
       <div class="brand">
-        <img src="../tech-pwa/src/assets/logo-reporta-plus.png" alt="Logo" />
+        <img src="{{logoUrl}}" alt="Logo" />
         <div>
           <div class="title">Informe de Servicio</div>
           <div style="font-size:12px;color:#6b7280;">Reporte generado por Reporta+</div>
