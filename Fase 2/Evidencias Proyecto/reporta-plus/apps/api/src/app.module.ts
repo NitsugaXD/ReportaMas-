@@ -13,6 +13,8 @@ import { MailModule } from './mail/mail.module'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { ReportesModule } from './reportes/reportes.module'
+import { UsersModule } from './users/users.module'
+import { DashboardModule } from './dashboard/dashboard.module'
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { ReportesModule } from './reportes/reportes.module'
     MailModule,
     ServicesModule,
     ReportesModule,
+    UsersModule,
+    DashboardModule,
   ],
   controllers: [
     HealthController,
